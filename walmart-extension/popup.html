@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Home Grocery Helper</title><link rel="stylesheet" href="popup.css"></head>
+<body><h1>Home Grocery Helper</h1><p>Walmart · saved lists & history</p>
+<p id="status" role="status">Capture products, then check the items you want to add.</p>
+<button id="capture">Capture products on this page</button>
+<p class="hint">Request mode adds learned products without page clicks. Existing quantities stay unchanged. You can open the cart while requests continue.</p>
+<button id="saved">Show learned products</button>
+<button id="connect">Connect Walmart session</button>
+<details><summary>Household website</summary><label for="household-url">Server address</label><input id="household-url" value="http://127.0.0.1:4317" type="url"><label for="household-account">Walmart account nickname</label><input id="household-account" maxlength="60" placeholder="e.g. Avery or Wife"><p class="hint">Name the Walmart account signed into this Chrome profile.</p><button id="household-connect">Connect household</button><p id="household-status" class="hint">Not connected</p></details>
+<details id="history-import-controls"><summary>Import past store purchases</summary><p class="hint">Open Walmart or H-E-B in this profile, then collect history. A separate tab reads up to 1,000 orders. You will review the destination account and items on the website before importing. Verified receipts are skipped. New orders and incomplete receipts are collected without duplicate purchases. Use Verify this receipt’s prices for a deliberate recheck. No cart changes.</p><label for="collection-store">Store to read</label><select id="collection-store"><option value="Walmart">Walmart</option><option value="HEB">H-E-B</option></select><label for="history-start-page">Start at history page</label><input id="history-start-page" type="number" min="1" max="200" value="1"><button id="audit-receipt">Verify this receipt’s prices</button><p id="receipt-audit-status" class="hint" role="status"></p><button id="collect-history">Collect purchase history</button><p id="collection-status" role="status" class="hint"></p></details><button id="history-toggle" aria-expanded="false">Shopping history</button>
+<section id="history-panel" hidden>
+<h2>Shopping history</h2>
+<p class="hint">Confirmed additions through Walmart or this extension are treated as purchases. Existing items, removals and failed additions aren’t new purchases. History stays in this Chrome profile.</p>
+<div id="history-list"></div>
+<button id="history-export">Export shopping history</button>
+</section>
+<div id="products"></div>
+<button id="fill">Add selected items to Walmart</button>
+<button id="cart">Open Walmart cart</button>
+<button id="request-test">Request test: restore one removed item</button>
+<div id="report"></div>
+<button id="download">Download diagnostic log</button>
+<p id="automatic-log" class="hint">A diagnostic log is downloaded automatically after each cart run.</p>
+<p class="hint">Logs contain product details, timing, and cart-control labels. No passwords, cookies, addresses, or full page captures.</p>
+<script src="popup.js"></script></body></html>

@@ -1,0 +1,101 @@
+{
+  "manifest_version": 3,
+  "name": "Home Grocery Helper",
+  "version": "0.5.15",
+  "minimum_chrome_version": "120",
+  "description": "Capture Walmart products and add a saved grocery list to your cart for review.",
+  "permissions": [
+    "background",
+    "storage",
+    "activeTab",
+    "downloads",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://www.walmart.com/*",
+    "http://localhost:4317/*",
+    "http://127.0.0.1:4317/*",
+    "http://192.168.1.250:4317/*",
+    "http://groceries.local/*",
+    "https://www.heb.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.walmart.com/*"
+      ],
+      "js": [
+        "cart-observer.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://www.walmart.com/*"
+      ],
+      "js": [
+        "content.js"
+      ]
+    },
+    {
+      "matches": [
+        "https://www.walmart.com/orders*",
+        "https://www.heb.com/my-account/*"
+      ],
+      "js": [
+        "history-collector.js"
+      ]
+    },
+    {
+      "matches": [
+        "https://www.walmart.com/*",
+        "https://www.heb.com/*"
+      ],
+      "js": [
+        "sync-feedback.js"
+      ]
+    },
+    {
+      "matches": [
+        "https://www.heb.com/*"
+      ],
+      "js": [
+        "heb-content.js"
+      ]
+    },
+    {
+      "matches": [
+        "https://www.walmart.com/*",
+        "https://www.heb.com/*"
+      ],
+      "js": [
+        "purchase-confirmation.js"
+      ]
+    },
+    {
+      "matches": [
+        "https://www.walmart.com/ip/*",
+        "https://www.heb.com/product-detail/*"
+      ],
+      "js": [
+        "store-price.js"
+      ]
+    },
+    {
+      "matches": [
+        "https://www.walmart.com/*",
+        "https://www.heb.com/*"
+      ],
+      "js": [
+        "product-observer.js"
+      ]
+    }
+  ]
+}

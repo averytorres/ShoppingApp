@@ -1,0 +1,2 @@
+order_id,purchased_at,status,product_id,name,quantity,unit_price,item_status,unit
+FICTIONAL-EXAMPLE-DO-NOT-IMPORT,2026-01-01,completed,123456789,Fictional example product,1,2.50,completed,each

@@ -1,0 +1,12 @@
+{
+  "orders": [
+    {
+      "orderId": "FICTIONAL-EXAMPLE-DO-NOT-IMPORT",
+      "purchasedAt": "2026-01-01",
+      "status": "completed",
+      "items": [
+        {"productId": "123456789", "name": "Fictional example product", "quantity": 1, "unitPrice": 2.5, "status": "completed"}
+      ]
+    }
+  ]
+}

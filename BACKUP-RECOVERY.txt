@@ -1,0 +1,68 @@
+DATABASE AND PHOTO BACKUPS
+
+Run these commands from:
+C:\Users\avery\Documents\ChatGPT\ShoppingApp
+
+Create a complete data backup while the household server is running:
+  node .\backup.js create
+
+The command prints the new backup directory. It contains groceries.sqlite,
+product-images, and manifest.json. The manifest records SHA-256 checksums,
+database schema/table fingerprints, and every referenced cached photo.
+A backup is usable only when verification succeeds and prints "ok": true.
+Older database-only snapshots are preserved; this tool never deletes them.
+
+Verified backup created November 12, 2026:
+  .data\backups\household-2026-11-12T14-33-55-056Z-418845
+
+Verify it again:
+  node .\backup.js verify ".data\backups\household-2026-11-12T14-33-55-056Z-418845"
+
+Restore to a NEW directory (existing data is never overwritten):
+  node .\backup.js restore ".data\backups\household-2026-11-12T14-33-55-056Z-418845" ".data-recovered"
+
+Preview the recovered copy safely in a separate PowerShell terminal:
+  $env:GROCERY_DATA_DIR = Join-Path $PWD '.data-recovered'
+  $env:HOST = '127.0.0.1'
+  $env:PORT = '4318'
+  $env:GROCERY_ALIAS = '0'
+  node .\server.js
+
+Open http://127.0.0.1:4318. Restored directories contain RECOVERY-READONLY,
+which automatically disables writes, browser launching and automatic sync.
+Use History and Spending & habits to check purchases, and Shop to check photos.
+Stop the preview with Ctrl+C when finished. Close that temporary terminal so
+its environment settings do not affect a later normal server launch.
+
+Actual recovery / cutover:
+Do not replace the healthy live database as a test. Keep the original data
+folder as a rollback copy. Stop the grocery service before a real cutover.
+After reviewing a recovered copy, explicit activation is available:
+  node .\backup.js activate ".data-recovered"
+Activation holds old queued/running cart and sync jobs as "needs attention"
+so they cannot replay automatically, resets connection readiness, and removes
+the read-only marker. It does not start a server or change the live data folder.
+The launcher must then be pointed at the recovered directory for a real cutover.
+After restarting, reconnect the helper if necessary and refresh the live store
+carts before sending any cart changes. A backup is a snapshot, not current
+retailer cart state.
+
+What is covered:
+- Every database table, including receipts, prices, product matches, packs,
+  preferences, saved products, and sync records.
+- All cached photo files referenced by that database snapshot.
+
+What is not covered:
+- Application source/dependencies or Chrome profiles/store sign-in sessions.
+  Preserve the application project separately; sign into stores again if needed.
+- Automatic scheduled backups or an off-PC copy. This backup is currently a
+  manual local snapshot. A copy on the same disk does not protect against disk
+  failure, theft or loss of the PC. Keep the entire backup directory together
+  when copying it to independent storage, then run verify against that copy.
+
+Verification performed:
+All 31 database table fingerprints, 121 receipt records and 154 cached photos
+matched after restore. The restored site loaded the receipts and actual photos.
+Read-only enforcement, damaged-file rejection, overwrite protection, queued-job
+replay prevention and explicit safe activation were tested in isolated copies.
+The healthy live database and store carts were not replaced or changed.

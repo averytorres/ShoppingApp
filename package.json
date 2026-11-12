@@ -1,0 +1,1 @@
+{"name":"home-grocery","private":true,"scripts":{"start":"node server.js"},"engines":{"node":">=22.13"},"dependencies":{"@homebridge/ciao":"^1.4.0","ws":"^8.22.2"}}
