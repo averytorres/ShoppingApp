@@ -316,6 +316,12 @@ const server = http.createServer(async(req,res)=>{
       return json(200,{ok:true});
     }
     if(req.method==='POST'&&['/api/snoozes','/api/reusable-lists','/api/replacement-preferences'].includes(url.pathname)){const result=shoppingTools.handle(url.pathname,await body(req));notify();return json(200,result);}
+    if(req.method==='GET' && url.pathname==='/api/branding/mascot'){
+      const file=path.join(dataDirectory,'branding','mascot.png'),custom=fs.existsSync(file),content=custom?fs.readFileSync(file):Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80"><rect width="80" height="80" rx="20" fill="#234535"/><path d="M20 38 40 20 60 38v23H46V45H34v16H20Z" fill="none" stroke="#fff" stroke-width="4" stroke-linejoin="round"/></svg>');
+      const etag='"'+crypto.createHash('sha256').update(content).digest('hex')+'"';res.setHeader('Cache-Control','no-cache');res.setHeader('ETag',etag);res.setHeader('X-Content-Type-Options','nosniff');
+      if(req.headers['if-none-match']===etag){res.writeHead(304);return res.end();}
+      res.writeHead(200,{'Content-Type':custom?'image/png':'image/svg+xml'});return res.end(content);
+    }
     if(req.method==='GET' && url.pathname==='/api/installation'){
       const local=remote==='::1'||remote==='127.0.0.1';
       return json(200,{local,extensionFolder:local?path.join(__dirname,'walmart-extension'):null,addresses:networkConfig.addresses().map(address=>'http://'+address+':'+port),port});

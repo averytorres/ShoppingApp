@@ -1,5 +1,5 @@
 (() => {
-  let preview;
+  let preview;let previewVersion=0;
   let importStoreApplied=false;
   const message=text=>{$('import-status').textContent=text;};
   window.renderImportAccounts=()=>{
@@ -16,23 +16,23 @@
       const card=node('article',undefined,'plan-row');const label=node('label',order.label+(order.created?' · '+new Date(order.created).toLocaleDateString(undefined,{timeZone:'UTC'}):''));
       if(!order.skip){const checked=node('input');checked.type='checkbox';checked.checked=true;checked.value=order.id;checked.setAttribute('aria-label','Import '+order.label);label.prepend(checked);}card.append(label);
       if(order.skip)card.append(node('p','Skipped: '+order.skip));
-      for(const item of order.items||[]){const amount=item.unit&&item.unit!=='each'?item.quantity+' '+item.unit+' · ':item.quantity+' × ';card.append(node('p',amount+item.name+(item.unitPrice!==undefined?' · $'+item.unitPrice.toFixed(2)+' / '+(item.unit||'each'):'')));}
+      for(const item of order.items||[]){const amount=item.unit&&item.unit!=='each'?item.quantity+' '+item.unit+' · ':item.quantity+' × ';card.append(node('p',amount+item.name+(Number.isFinite(item.unitPrice)?' · $'+item.unitPrice.toFixed(2)+' / '+(item.unit||'each'):'')));}
       for(const warning of new Set(order.warnings||[]))card.append(node('p',warning,'fine'));
       $('import-review').append(card);
     }
     $('import-commit').hidden=!result.eligible||result.committed;
     if(result.committed)message('This collection was already imported.');
   }
-  function invalidate(){preview=null;$('import-commit').hidden=true;$('import-review').replaceChildren();message('Preview this file for the selected account and store.');}
+  function invalidate(){previewVersion++;preview=null;$('import-commit').hidden=true;$('import-review').replaceChildren();message('Preview this file for the selected account and store.');}
   $('import-account').onchange=invalidate;$('import-store').onchange=()=>{importStoreApplied=true;invalidate();};$('import-file').onchange=invalidate;
   $('import-preview').onclick=async()=>{
-    $('import-preview').disabled=true;preview=null;$('import-commit').hidden=true;$('import-review').replaceChildren();
+    const version=++previewVersion;const chosenFile=$('import-file').files[0];$('import-preview').disabled=true;preview=null;$('import-commit').hidden=true;$('import-review').replaceChildren();
     try{
-      const file=$('import-file').files[0];if(!file)throw Error('Choose a history file first.');if(file.size>1500000)throw Error('Use a file under 1.5 MB.');
+      const file=chosenFile;if(!file)throw Error('Choose a history file first.');if(file.size>1500000)throw Error('Use a file under 1.5 MB.');
       const format=file.name.toLowerCase().endsWith('.csv')?'csv':file.name.toLowerCase().endsWith('.json')?'json':null;if(!format)throw Error('Choose a JSON or CSV file.');
       const client=$('import-account').value,store=$('import-store').value;
       const result=await api('/api/history-import/preview',{client,store,format,text:await file.text()});
-      if(client!==$('import-account').value||store!==$('import-store').value)throw Error('The destination changed. Preview again.');display(result);
+      if(version!==previewVersion||chosenFile!==$('import-file').files[0]||client!==$('import-account').value||store!==$('import-store').value)throw Error('The destination changed. Preview again.');display(result);
     }catch(error){message(error.message);}finally{$('import-preview').disabled=false;}
   };
   $('import-commit').onclick=async()=>{
@@ -49,7 +49,7 @@
   if(collectedId)(async()=>{try{
     const result=await api('/api/history-import/preview?id='+encodeURIComponent(collectedId));const available=await api('/api/state');
     $('import-account').replaceChildren();for(const client of available.clients){const option=node('option',client.name);option.value=client.id;$('import-account').append(option);}
-    $('import-account').value=result.client;$('import-store').value=result.store;showView('history');$('import-preview').closest('details').open=true;display(result);
+    importStoreApplied=true;$('import-account').value=result.client;$('import-store').value=result.store;showView('history');$('import-preview').closest('details').open=true;display(result);
     history.replaceState(null,'',location.pathname+'#history');
   }catch(error){message(error.message);}})();
 })();

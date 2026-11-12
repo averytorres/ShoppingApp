@@ -1,6 +1,8 @@
 (() => {
-  let client,packStore,selected='',signature='';let choices=new Map();let builderLimit=20,lastHidden=null;
+  let client,packStore,selected='',signature='';let choices=new Map();let builderLimit=20,lastHidden=null,packBusy=false;const lockedControls=new Map();const expandedReasons=new Set();
   const message=text=>{$('pack-status').textContent=text;};
+  function busy(value){packBusy=value;if(value){for(const control of $('packs-view').querySelectorAll('input,select,button')){lockedControls.set(control,control.disabled);control.disabled=true;}}else{for(const [control,disabled]of lockedControls)if(control.isConnected)control.disabled=disabled;lockedControls.clear();window.renderPacks?.();}}
+
   const current=()=>state.packs?.find(pack=>pack.id===selected&&pack.client===selectedAccount&&pack.store===state.preferredStore);
   const newPack=node('button','Create a new pack'),removePack=node('button','Delete saved pack');newPack.id='pack-new';removePack.id='pack-delete';removePack.hidden=true;$('pack-save').after(newPack,removePack);
   const editor=$('pack-name').closest('details'),library=node('div'),search=node('input'),libraryStatus=node('p',undefined,'fine');search.id='pack-library-search';search.type='search';search.placeholder='Find a pack or an item inside it';search.setAttribute('aria-label','Find shopping packs');library.id='pack-library';$('pack-select').before(search,library,libraryStatus);newPack.className='secondary';search.before(newPack);
@@ -32,7 +34,7 @@
     $('pack-add').textContent='Add selected items to '+store+' cart ('+(pack?pack.items.filter(i=>choice(i.id).checked).length:0)+' selected)';
     $('pack-description').textContent=pack?(pack.learned?'Suggested grouping · bought together on '+pack.togetherCount+' dates, most recently '+pack.lastTogether+'. This does not mean all are needed now. Choose items and quantities for this shop.':'Your saved '+store+' pack · '+pack.items.length+' products.')+(pack.store!==state.preferredStore?' Choose '+store+' in the store selector above to add this pack.':''):'Choose a pack to see its items, or create your own pack below.';
     if(!pack)return;
-    if(pack.learned){const why=node('details',undefined,'fine');why.append(node('summary','Why this group?'),node('p','Bought together on '+pack.togetherCount+' of '+pack.shoppingDays+' shopping days. Last bought together: '+pack.lastTogether+'. Based on '+(pack.sources||[]).map(s=>s==='HEB'?'H-E-B':s).join(' and ')+'. These items appear together more often than their individual buying frequency would predict. This is an association, not evidence that you use them together or need them on the same schedule.'));$('pack-items').append(why);}
+    if(pack.learned){const why=node('details',undefined,'fine'),reasonKey=selectedAccount+'|'+pack.store+'|'+pack.id;why.open=expandedReasons.has(reasonKey);why.ontoggle=()=>{if(why.isConnected){if(why.open)expandedReasons.add(reasonKey);else expandedReasons.delete(reasonKey);}};why.append(node('summary','Why this group?'),node('p','Bought together on '+pack.togetherCount+' of '+pack.shoppingDays+' shopping days. Last bought together: '+pack.lastTogether+'. Based on '+(pack.sources||[]).map(s=>s==='HEB'?'H-E-B':s).join(' and ')+'. These items appear together more often than their individual buying frequency would predict. This is an association, not evidence that you use them together or need them on the same schedule.'));$('pack-items').append(why);}
     for(const item of pack.items)$('pack-items').append(row(item));
   }
   function select(){
@@ -41,6 +43,7 @@
     message('');preview();build();browse();
   }
   window.renderPacks=()=>{
+    if(packBusy)return;
     restoreHidden.hidden=!(state.packDismissals||[]).some(p=>p.client===selectedAccount);
     if(client!==selectedAccount||packStore!==state.preferredStore){client=selectedAccount;packStore=state.preferredStore;selected='';choices=new Map();signature='';$('pack-name').value='';search.value='';undoHide.hidden=true;lastHidden=null;}
     const packs=(state.packs||[]).filter(pack=>pack.client===selectedAccount&&pack.store===state.preferredStore);const next=JSON.stringify({packs,photos:state.productImages,store:state.preferredStore,products:storeProducts().map(item=>[item.id,item.name])});
@@ -50,13 +53,13 @@
     }
   };
   $('pack-select').onchange=select;$('pack-search').oninput=()=>{builderLimit=20;build();};
-  $('pack-save').onclick=async()=>{try{
+  $('pack-save').onclick=async()=>{if(packBusy)return;busy(true);try{
     const items=[...choices].filter(([,value])=>value.checked).map(([id,value])=>({id,quantity:value.quantity}));const pack=current();
     const result=await api('/api/packs',{client:selectedAccount,store:state.preferredStore,name:$('pack-name').value,items,...(pack&&!pack.learned?{id:pack.id}:{})});
     selected=result.id;signature='';await refresh();message('Pack saved. Nothing added to your cart.');
-  }catch(error){message(error.message);}};
+  }catch(error){message(error.message);}finally{busy(false);}};
   $('pack-add').onclick=async()=>{
-    const target=selectedAccount,store=state.preferredStore;$('pack-add').disabled=true;
+    if(packBusy)return;const target=selectedAccount,store=state.preferredStore;busy(true);
     try{
       const pack=current();if(!pack)throw Error('Choose a pack first.');if(pack.store!==state.preferredStore)throw Error('Select '+pack.store+' as your shopping store first.');
       const selectedItems=pack.items.filter(item=>choice(item.id).checked);if(!selectedItems.length)throw Error('Select at least one product.');
@@ -64,7 +67,7 @@
       const latest=await api('/api/state');if(target!==selectedAccount||store!==state.preferredStore)throw Error('The account or store changed. Review the pack again.');
       const items=selectedItems.filter(item=>(selectedLines(latest,target).find(line=>line.id===item.id)?.quantity||0)<choice(item.id).quantity).map(item=>({id:item.id,quantity:choice(item.id).quantity}));
       if(items.length)await api(pack.store==='HEB'?'/api/heb/list':'/api/repeat',{target,items});await refresh();message(items.length?'Selected pack items sent to the selected store cart. Existing quantities were preserved.':'Those quantities are already in the cart; nothing sent.');
-    }catch(error){message(error.message);}finally{$('pack-add').disabled=false;}
+    }catch(error){message(error.message);}finally{busy(false);}
   };
   window.renderPacks();
 })();
