@@ -220,6 +220,7 @@ Household.start(async job=>{
   return {report:run?.report||[],cart:CartRequests.snapshot(),...(run?.historyError?{error:run.historyError}:{})};
 });
 
+importScripts('heb-coupons.js');
 importScripts('heb-runner.js');
 
 importScripts('price-runner.js');

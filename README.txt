@@ -1,5 +1,19 @@
 Home Grocery — local household website
 
+H-E-B automatic coupons (helper 0.5.16)
+The signed-in PC helper checks coupon cards for products in the H-E-B cart,
+clips available offers, then reloads each product page to verify the saved state.
+This runs after website cart updates and observed direct H-E-B additions. Fresh
+checks are reused for six hours unless the quantity changes; Check coupons now
+forces a new check. Temporary inactive tabs are closed afterward. Coupon checks
+never add qualifying products or alter quantities. The cart panel shows progress,
+offer requirements, and whether H-E-B reports savings applied; a clipped offer is
+not a guaranteed discount. Conditional offers can remain clipped without being
+eligible. Sign-in/human checks and unknown controls produce explicit errors.
+Failed result delivery is saved locally and retried by the helper. Refresh the
+website and reload the extension after updating. Older notes below describe the
+project's development stages and may be superseded by later features.
+
 Start on the hosting PC (Node 22.13+; this PC has Node 26):
   cd C:\Users\avery\Documents\ChatGPT\ShoppingApp
   npm start
