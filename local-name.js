@@ -1,10 +1,9 @@
 const http = require('node:http');
-const os = require('node:os');
 const ciao = require('@homebridge/ciao');
 
 function startLocalName(handler, onServer) {
-  const address = Object.values(os.networkInterfaces()).flat().find(ip => ip?.family === 'IPv4' && ip.address === '192.168.1.250');
-  if (!address) { console.warn('groceries.local: expected home-network address is unavailable; using regular website address.'); return { close: async()=>{} }; }
+  const address = require('./network-config').addresses()[0];
+  if (!address) { console.warn('groceries.local: no private home-network address is available; localhost remains available.'); return { close: async()=>{} }; }
   let responder;
   const alias = http.createServer(handler);
   onServer?.(alias);
@@ -13,7 +12,7 @@ function startLocalName(handler, onServer) {
     try {
       responder = ciao.getResponder();
       const service = responder.createService({ name:'Home Grocery', hostname:'groceries', type:'http', port:80,
-        disabledIpv6:true, restrictedAddresses:[address.address], txt:{path:'/'} });
+        disabledIpv6:true, restrictedAddresses:[address], txt:{path:'/'} });
       service.on('hostname-change', hostname => console.warn(`Local hostname changed to ${hostname}; check for a naming conflict.`));
       await service.advertise();
       console.log(`Friendly home-network address: http://${service.getHostname().replace(/\.$/,'')}`);

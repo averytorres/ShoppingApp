@@ -37,7 +37,7 @@
   }
   function select(){
     selected=$('pack-select').value;choices=new Map();const pack=current();
-    if(pack){for(const item of pack.items)choices.set(item.id,{checked:!item.needsMatch,quantity:item.quantity});$('pack-name').value=pack.name;}else $('pack-name').value='';
+    if(pack){for(const item of pack.items)choices.set(item.id,{checked:!item.needsMatch&&!ShoppingAssist.isSnoozed(state,{...item,client:selectedAccount,store:state.preferredStore}),quantity:item.quantity});$('pack-name').value=pack.name;}else $('pack-name').value='';
     message('');preview();build();browse();
   }
   window.renderPacks=()=>{

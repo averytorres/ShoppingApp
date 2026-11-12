@@ -1,10 +1,10 @@
 (() => {
   let draft;
-  const evidence=()=>JSON.stringify((state.usualSuggestions||state.suggestions||[]).filter(i=>i.client===selectedAccount&&i.store===state.preferredStore));
+  const evidence=()=>JSON.stringify({items:(state.usualSuggestions||state.suggestions||[]).filter(i=>i.client===selectedAccount&&i.store===state.preferredStore),snoozes:(state.itemSnoozes||[]).filter(i=>i.client===selectedAccount)});
   const amount=ShoppingGuidance.startingAmount;
   function build(){
     const current=selectedLines();
-    const rows=(state.usualSuggestions||state.suggestions||[]).filter(item=>item.client===selectedAccount&&item.store===state.preferredStore&&!current.some(line=>line.id===item.id&&line.quantity>0)).map(item=>({...item,amount:amount(item),checked:ShoppingGuidance.group(item)==='regular'&&item.matchKind!=='substitute'&&item.daysUntil>=-item.intervalDays*2}));
+    const rows=(state.usualSuggestions||state.suggestions||[]).filter(item=>item.client===selectedAccount&&item.store===state.preferredStore&&!ShoppingAssist.isSnoozed(state,item)&&!current.some(line=>line.id===item.id&&line.quantity>0)).map(item=>({...item,amount:amount(item),checked:ShoppingGuidance.group(item)==='regular'&&item.matchKind!=='substitute'&&item.daysUntil>=-item.intervalDays*2}));
     draft={client:selectedAccount,store:state.preferredStore,day:HouseholdCalendar.today(),evidence:evidence(),rows};renderDraft();
   }
   function renderDraft(){
@@ -16,19 +16,18 @@
     const status=node('p',undefined,'fine');status.setAttribute('role','status');
     const accept=node('button','Add selected to '+store+' cart','primary');
     const update=()=>{const count=draft.rows.filter(row=>row.checked).length;accept.textContent='Add '+count+' selected to '+store+' cart';accept.disabled=!count;};
-    for(const group of ShoppingGuidance.groups){
-      const items=draft.rows.filter(item=>ShoppingGuidance.group(item)===group.id);if(!items.length)continue;
-      const section=node(['older','match'].includes(group.id)?'details':'section',undefined,'usual-group');section.dataset.group=group.id;
-      section.append(node(section.tagName==='DETAILS'?'summary':'h4',group.title+' · '+items.length),node('p',group.description,'fine'));host.append(section);
-      for(const item of items){
+    const product=item=>({name:item.name||'Choose product'}),enabled=item=>!item.needsMatch&&(draft.store==='HEB'||state.products.some(p=>p.id===item.id&&p.offerId))&&!(state.currentPrices||[]).some(p=>p.client===draft.client&&p.store===draft.store&&p.id===item.id&&ShoppingAssist.fresh(p)&&p.available===false);
+    const renderItems=(items,parent,suffix='')=>window.categoryReview(items.filter(i=>!i.snoozed&&!ShoppingAssist.isSnoozed(state,i)),parent,{product,enabled,checked:i=>i.checked,select:(i,value)=>{i.checked=value;},redraw:renderDraft,suffix,render:(item,section)=>{
         const row=node('div',undefined,'usual-row'),label=node('label'),check=node('input');check.type='checkbox';check.checked=item.checked;
-        const available=!item.needsMatch&&(draft.store==='HEB'||state.products.some(product=>product.id===item.id&&product.offerId));check.disabled=!available;if(!available)item.checked=false;
+        const unavailable=(state.currentPrices||[]).some(p=>p.client===draft.client&&p.store===draft.store&&p.id===item.id&&ShoppingAssist.fresh(p)&&p.available===false);const available=!unavailable&&!item.needsMatch&&(draft.store==='HEB'||state.products.some(product=>product.id===item.id&&product.offerId));check.disabled=!available;if(!available){item.checked=false;check.checked=false;}
         check.onchange=()=>{item.checked=check.checked;update();};label.append(check,node('span',item.name));
-        const detail=node('small','Last bought '+HouseholdCalendar.elapsed(item.lastPurchasedDay??Date.parse(item.lastPurchasedAt.slice(0,10)))+' days ago · typical gap '+item.intervalDays+' days · '+ShoppingGuidance.reliabilityLabel(item)+(!available?' · Choose a product first':''),'fine');
+        const detail=node('small','Last bought '+HouseholdCalendar.elapsed(item.lastPurchasedDay??Date.parse(item.lastPurchasedAt.slice(0,10)))+' days ago · typical gap '+item.intervalDays+' days · '+ShoppingGuidance.reliabilityLabel(item)+(!available?(unavailable?' · Unavailable when checked':' · Choose a product first'):''),'fine');
         const basis=node('details',undefined,'fine');basis.append(node('summary','Timing & quantity details'),node('p','Based on '+item.purchaseCount+' purchase days within the last year. '+ShoppingGuidance.quantityNote(item)));
-        const info=node('div');info.append(label,detail);if(item.unit!=='each')info.append(node('small','Item/package count, not pounds.','fine'));info.append(basis);if(item.matchKind==='substitute')info.append(node('small',item.matchNote||'Alternative product: review the type and quantity.','fine'));const quantity=node('input');quantity.type='number';quantity.min=1;quantity.max=100;quantity.step=1;quantity.value=item.amount;quantity.disabled=!available;quantity.setAttribute('aria-label','Draft quantity for '+item.name);quantity.oninput=()=>{item.amount=Number(quantity.value);};row.append(info,quantity);section.append(row);
-      }
-    }
+        const info=node('div');info.append(label,detail);if(item.unit!=='each')info.append(node('small','Item/package count, not pounds.','fine'));info.append(basis);if(item.matchKind==='substitute')info.append(node('small',item.matchNote||'Alternative product: review the type and quantity.','fine'));const quantity=node('input');quantity.type='number';quantity.min=1;quantity.max=100;quantity.step=1;quantity.value=item.amount;quantity.disabled=!available;quantity.setAttribute('aria-label','Draft quantity for '+item.name);quantity.oninput=()=>{item.amount=Number(quantity.value);};if(item.id&&window.snoozeControl)info.append(window.snoozeControl(item,()=>{item.checked=false;item.snoozed=true;renderDraft();}));window.decorateShoppingProduct?.(info,item,candidate=>{Object.assign(item,{id:candidate.id,name:candidate.name,unit:(state.itemCatalog||[]).find(p=>p.client===draft.client&&p.store===draft.store&&p.productId===candidate.id)?.unit||'each',amount:candidate.chosenQuantity||1,needsMatch:false,checked:true,quantityNote:'Replacement you chose; review its package size and starting amount.'});renderDraft();});row.append(info,window.quantityControls(quantity));section.append(row);
+
+    }});
+    renderItems(draft.rows.filter(i=>ShoppingGuidance.group(i)!=='older'),host);
+    const older=draft.rows.filter(i=>ShoppingGuidance.group(i)==='older');if(older.length){const details=node('details',undefined,'usual-group');details.dataset.group='older';details.open=!!draft.olderOpen;details.append(node('summary','Older habits · '+older.length));details.ontoggle=()=>{if(details.isConnected)draft.olderOpen=details.open;};renderItems(older,details,' older habits');host.append(details);}
     accept.onclick=async()=>{
       try{
         if(selectedAccount!==draft.client||state.preferredStore!==draft.store)throw Error('The account or store changed. Build a new usual list before accepting.');
@@ -38,6 +37,7 @@
         // Refresh before submitting so accepting never reduces quantities already in the cart.
         const latest=await api('/api/state');
         if(latest.preferredStore!==draft.store)throw Error('The store changed elsewhere. Build a new usual list.');
+        if(chosen.some(row=>ShoppingAssist.isSnoozed(latest,row)))throw Error('An item was marked as already stocked while this draft was open. Show it again or build a fresh review.');
         const lines=draft.store==='HEB'?hebLines(latest,draft.client):latest.list.filter(line=>line.client===draft.client);
         const items=chosen.map(row=>({id:row.id,quantity:Math.max(row.amount,lines.find(line=>line.id===row.id)?.quantity||0)}));
         await api(draft.store==='HEB'?'/api/heb/list':'/api/repeat',{target:draft.client,items});

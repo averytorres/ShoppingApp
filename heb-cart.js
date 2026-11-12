@@ -5,7 +5,11 @@ module.exports=db=>{
  if(!db.prepare('PRAGMA table_info(heb_carts)').all().some(c=>c.name==='last_nonempty'))db.exec('ALTER TABLE heb_carts ADD COLUMN last_nonempty TEXT');
  const jobs=client=>db.prepare("SELECT * FROM heb_jobs WHERE client=? AND state IN ('queued','running') ORDER BY created,rowid").all(client);
  const cart=client=>JSON.parse(db.prepare('SELECT data FROM heb_carts WHERE client=?').get(client)?.data||'[]');
- function state(){return {hebCoupons:db.prepare('SELECT client,data FROM heb_coupon_checks').all().map(r=>({client:r.client,...JSON.parse(r.data)})),hebCarts:db.prepare('SELECT * FROM heb_carts').all().map(row=>({...row,lines:JSON.parse(row.data),data:undefined})),hebJobs:db.prepare('SELECT * FROM heb_jobs ORDER BY created DESC LIMIT 50').all().map(row=>({...row,items:JSON.parse(row.data),result:row.result?JSON.parse(row.result):null,data:undefined}))};}
+ function state(){return {
+  hebCoupons:db.prepare('SELECT client,data FROM heb_coupon_checks').all().map(r=>({client:r.client,...JSON.parse(r.data)})),
+  hebCarts:db.prepare('SELECT * FROM heb_carts').all().map(row=>({...row,lines:JSON.parse(row.data),data:undefined})),
+  hebJobs:db.prepare("SELECT * FROM heb_jobs WHERE state IN ('queued','running') OR id IN (SELECT id FROM heb_jobs ORDER BY created DESC LIMIT 50) ORDER BY created DESC").all().map(row=>({...row,items:JSON.parse(row.data),result:row.result?JSON.parse(row.result):null,data:undefined}))
+ };}
  function handle(route,data){
   const client=String(data.target||data.clientId||'');if(!db.prepare('SELECT id FROM clients WHERE id=?').get(client))throw Error('Choose a connected household account');
   if(route==='/api/heb/coupons/check'){
@@ -25,7 +29,7 @@ module.exports=db=>{
    const items=data.items||[data];if(!Array.isArray(items)||!items.length||items.length>100||new Set(items.map(x=>x.id)).size!==items.length)throw Error('Choose 1–100 distinct H-E-B products');
    if(jobs(client).length>=100)throw Error('Too many pending cart requests');
    const current=cart(client);for(const job of jobs(client))for(const item of JSON.parse(job.data)){const old=current.find(x=>x.id===item.id);if(old)old.quantity=item.quantity;else current.push(item);}
-   const catalog=db.prepare("SELECT data FROM purchases WHERE client=? AND store='HEB'").all(client).flatMap(row=>JSON.parse(row.data));const linked=db.prepare("SELECT product_id AS id,name FROM household_variants WHERE client=? AND store='HEB'").all(client);
+   const catalog=db.prepare("SELECT data FROM purchases WHERE client=? AND store='HEB'").all(client).flatMap(row=>JSON.parse(row.data));catalog.push(...db.prepare("SELECT id,name FROM saved_store_products WHERE client=? AND store='HEB'").all(client));const linked=db.prepare("SELECT product_id AS id,name FROM household_variants WHERE client=? AND store='HEB'").all(client);
    const clean=items.map(item=>{if(!/^\d{1,25}$/.test(item.id)||!Number.isInteger(item.quantity)||item.quantity<0||item.quantity>100)throw Error('Use H-E-B item counts from 0 to 100');const product=[...catalog,...linked,...current].find(p=>p.id===item.id);if(!product)throw Error('Choose a saved H-E-B product');return {id:item.id,name:product.name,quantity:item.quantity,expectedQuantity:current.find(p=>p.id===item.id)?.quantity||0,ripeness:db.prepare("SELECT value FROM household_settings WHERE key='hebRipeness'").get()?.value||'No preference'};});
    const id=crypto.randomUUID();db.prepare('INSERT INTO heb_jobs VALUES(?,?,?,?,?,NULL)').run(id,client,new Date().toISOString(),'queued',JSON.stringify(clean));return {ok:true,id};
   }

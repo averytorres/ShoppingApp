@@ -17,3 +17,4 @@ chrome-profile/
 browser-profile/
 playwright-report/
 test-results/
+dist/

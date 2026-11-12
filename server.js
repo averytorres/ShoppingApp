@@ -2,6 +2,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const networkConfig = require('./network-config');
 const {suggestions}=require('./reorder');
 const householdCalendar=require('./web/calendar');
 const historyImport=require('./history-import');
@@ -18,7 +19,7 @@ function attachEvents(server){
     const host=(req.headers.host||'').toLowerCase();
     const origin=req.headers.origin;
     const remote=(req.socket.remoteAddress||'').replace(/^::ffff:/,'');
-    const allowedHost=/^(localhost|127\.0\.0\.1|192\.168\.1\.250|groceries\.local)(:\d+)?$/.test(host);
+    const allowedHost=networkConfig.allowedHost(host);
     const allowedRemote=remote==='::1'||/^127\.|^192\.168\.|^10\.|^172\.(1[6-9]|2\d|3[01])\./.test(remote);
     if(!allowedHost||!allowedRemote||req.url!=='/api/bridge/events'||(origin&&origin!==`http://${host}`&&!origin.startsWith('chrome-extension://'))){socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');return;}
     events.handleUpgrade(req,socket,head,peer=>events.emit('connection',peer,req));
@@ -93,6 +94,13 @@ for(const [column,type] of [['store',"TEXT NOT NULL DEFAULT 'Walmart'"],['source
 db.exec('CREATE TABLE IF NOT EXISTS import_previews(id TEXT PRIMARY KEY,created INTEGER NOT NULL,data TEXT NOT NULL,result TEXT)');
 db.exec('CREATE TABLE IF NOT EXISTS shopping_packs(id TEXT PRIMARY KEY,client TEXT NOT NULL,data TEXT NOT NULL)');
 db.exec('CREATE TABLE IF NOT EXISTS household_settings(key TEXT PRIMARY KEY,value TEXT NOT NULL); CREATE TABLE IF NOT EXISTS account_labels(client TEXT PRIMARY KEY,name TEXT NOT NULL)');
+const installationSettingsFile=path.join(dataDirectory,'installation-settings.json');
+if(fs.existsSync(installationSettingsFile)){
+ const installation=JSON.parse(fs.readFileSync(installationSettingsFile,'utf8').replace(/^\uFEFF/,''));
+ if(typeof installation.householdName==='string'&&installation.householdName.trim().length<=60)db.prepare("INSERT OR IGNORE INTO household_settings VALUES('householdName',?)").run(installation.householdName.trim());
+ if(['HEB','Walmart'].includes(installation.preferredStore))db.prepare("INSERT OR IGNORE INTO household_settings VALUES('preferredStore',?)").run(installation.preferredStore);
+}
+
 db.exec('CREATE TABLE IF NOT EXISTS household_items(id TEXT PRIMARY KEY,client TEXT NOT NULL,name TEXT NOT NULL); CREATE TABLE IF NOT EXISTS household_variants(client TEXT NOT NULL,store TEXT NOT NULL,product_id TEXT NOT NULL,unit TEXT NOT NULL,group_id TEXT NOT NULL,factor REAL NOT NULL,name TEXT NOT NULL,PRIMARY KEY(client,store,product_id,unit))');
 for(const [name,type] of [['kind',"TEXT NOT NULL DEFAULT 'equivalent'"],['note',"TEXT NOT NULL DEFAULT ''"]])if(!db.prepare('PRAGMA table_info(household_items)').all().some(c=>c.name===name))db.exec('ALTER TABLE household_items ADD COLUMN '+name+' '+type);
 db.exec('CREATE TABLE IF NOT EXISTS history_archive(id TEXT PRIMARY KEY,data TEXT NOT NULL,archived TEXT NOT NULL,reason TEXT NOT NULL); CREATE TABLE IF NOT EXISTS history_exclusions(id TEXT PRIMARY KEY)');
@@ -127,6 +135,7 @@ const storeTasks=require('./store-tasks')(db);
 const receiptProducts=require('./receipt-products')(db,storeTasks,productImages,product);
 const purchaseCompletion=require('./purchase-completion')(db);
 db.exec('CREATE TABLE IF NOT EXISTS store_prices(client TEXT,store TEXT,id TEXT,data TEXT,PRIMARY KEY(client,store,id))');
+const shoppingTools=require('./shopping-tools')(db);
 function matchedPriceItems(client,limit=20){const shared=sharedLearning(),frequency=new Map();for(const row of db.prepare('SELECT store,data FROM purchases WHERE client=? ORDER BY created DESC LIMIT 100').all(client))for(const item of JSON.parse(row.data)){const link=shared.links.find(v=>v.client===client&&v.store===row.store&&v.productId===item.id);if(link)frequency.set(link.groupId,(frequency.get(link.groupId)||0)+1);}return shared.groups.filter(g=>g.client===client&&g.kind!=='substitute').map(g=>({group:g,variants:shared.links.filter(v=>v.client===client&&v.groupId===g.id&&v.unit==='each')})).filter(g=>g.variants.some(v=>v.store==='HEB')&&g.variants.some(v=>v.store==='Walmart')).sort((a,b)=>(frequency.get(b.group.id)||0)-(frequency.get(a.group.id)||0)).slice(0,limit).flatMap(g=>['HEB','Walmart'].map(store=>{const v=g.variants.find(v=>v.store===store);return {store,id:v.productId,name:v.name};}));}
 function routinePriceItems(client,store){const count=new Map();for(const row of db.prepare('SELECT data FROM purchases WHERE client=? AND store=? ORDER BY created DESC LIMIT 50').all(client,store))for(const i of JSON.parse(row.data)){if(!/^\d{1,25}$/.test(i.id))continue;const old=count.get(i.id)||{id:i.id,name:i.name,count:0};old.count++;count.set(i.id,old);}return [...count.values()].sort((a,b)=>b.count-a.count).slice(0,20).map(({id,name})=>({id,name}));}
 function queueHistory(client,cycle){return ['Walmart','HEB'].map(store=>storeTasks.enqueue(client,store,'history',cycle));}
@@ -140,12 +149,12 @@ setTimeout(weeklyHistoryTick,15000);setInterval(weeklyHistoryTick,60000);
 function state() {
   const products = read('products');
   const shared=sharedLearning();
-  return { recoveryMode,productImages:productImages.state(),packDismissals:db.prepare('SELECT client,id FROM pack_dismissals').all(),hebPreferences:{ripeness:db.prepare("SELECT value FROM household_settings WHERE key='hebRipeness'").get()?.value||'No preference'},currentPrices:db.prepare('SELECT client,store,id,data FROM store_prices').all().map(p=>({...JSON.parse(p.data),client:p.client,store:p.store,id:p.id})),purchaseCompletions:purchaseCompletion.state(),storeTasks:storeTasks.state(),historySchedule:{day:'Monday',hour:2,timeZone:'America/New_York'},...hebCart.state(),products, preferredStore:preferredStore(),householdItems:shared.groups,householdVariants:shared.links,itemCatalog:[...db.prepare('SELECT client,store,id AS productId,name,unit,url FROM saved_store_products').all(),...shared.itemCatalog,...shared.links,...products.map(item=>({client:null,store:'Walmart',productId:item.id,name:item.name,unit:'each'}))], defaultClientId:db.prepare("SELECT value FROM household_settings WHERE key='defaultClientId'").get()?.value||null, packs:readPacks(), listDefaults:db.prepare('SELECT store,term,id,quantity FROM store_list_defaults').all(),listRules:db.prepare('SELECT trigger,extra,mode FROM list_rules').all(), usualSuggestions:shared.suggestions,suggestions:shared.suggestions.filter(item=>item.daysUntil<=3), runnerErrors:Object.fromEntries(runnerErrors), history: read('history').sort((a,b)=>b.startedAt.localeCompare(a.startedAt)),
+  return { householdName:db.prepare("SELECT value FROM household_settings WHERE key='householdName'").get()?.value||'',...shoppingTools.state(),recoveryMode,productImages:productImages.state(),packDismissals:db.prepare('SELECT client,id FROM pack_dismissals').all(),hebPreferences:{ripeness:db.prepare("SELECT value FROM household_settings WHERE key='hebRipeness'").get()?.value||'No preference'},currentPrices:db.prepare('SELECT client,store,id,data FROM store_prices').all().map(p=>({...JSON.parse(p.data),client:p.client,store:p.store,id:p.id})),purchaseCompletions:purchaseCompletion.state(),storeTasks:storeTasks.state(),historySchedule:{day:'Monday',hour:2,timeZone:'America/New_York'},...hebCart.state(),products, preferredStore:preferredStore(),householdItems:shared.groups,householdVariants:shared.links,itemCatalog:[...db.prepare('SELECT client,store,id AS productId,name,unit,url FROM saved_store_products').all(),...shared.itemCatalog,...shared.links,...products.map(item=>({client:null,store:'Walmart',productId:item.id,name:item.name,unit:'each'}))], defaultClientId:db.prepare("SELECT value FROM household_settings WHERE key='defaultClientId'").get()?.value||null, packs:readPacks(), listDefaults:db.prepare('SELECT store,term,id,quantity FROM store_list_defaults').all(),listRules:db.prepare('SELECT trigger,extra,mode FROM list_rules').all(), usualSuggestions:shared.suggestions,suggestions:shared.suggestions.filter(item=>item.daysUntil<=3), runnerErrors:Object.fromEntries(runnerErrors), history: read('history').sort((a,b)=>b.startedAt.localeCompare(a.startedAt)),
     list: db.prepare('SELECT client,id,quantity FROM cart_lists').all(),
     carts:db.prepare('SELECT client,synced,completed,(last_nonempty IS NOT NULL AND completed=0) AS canComplete FROM account_carts').all(),
     purchases:db.prepare('SELECT id,client,created,data,store,source FROM purchases ORDER BY created DESC LIMIT 1000').all().map(row=>({...row,items:JSON.parse(row.data),receipt:db.prepare('SELECT subtotal,total,state,checked,source_url FROM purchase_receipts WHERE purchase=?').get(row.id)||null,data:undefined})),
     clients: db.prepare('SELECT id,name,seen,ready,sync_version,cart_error,(SELECT profile FROM browser_launchers WHERE client=clients.id) AS launchProfile FROM clients').all(),
-    jobs: db.prepare('SELECT id,created,state,target,(SELECT name FROM clients WHERE clients.id=jobs.target) AS accountName,result FROM jobs ORDER BY created DESC LIMIT 20').all().map(job=>({...job,result:job.result?JSON.parse(job.result):null})) };
+    jobs: db.prepare("SELECT id,created,state,target,data,(SELECT name FROM clients WHERE clients.id=jobs.target) AS accountName,result FROM jobs WHERE state IN ('queued','running') OR id IN (SELECT id FROM jobs ORDER BY created DESC LIMIT 20) ORDER BY created DESC").all().map(job=>({...job,items:(JSON.parse(job.data).items||[]).map(i=>({id:i.id,name:i.name,quantity:i.quantity})),data:undefined,result:job.result?JSON.parse(job.result):null})) };
 }
 async function body(req) {
   if (!req.headers['content-type']?.startsWith('application/json')) throw Error('JSON required');
@@ -156,7 +165,7 @@ const server = http.createServer(async(req,res)=>{
   const json = (code,data) => {res.writeHead(code,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(data));};
   try {
     const host = (req.headers.host || '').toLowerCase();
-    if (!/^(localhost|127\.0\.0\.1|192\.168\.1\.250|groceries\.local)(:\d+)?$/.test(host)) return json(403,{error:'Unsupported host'});
+    if (!networkConfig.allowedHost(host)) return json(403,{error:'Unsupported host'});
     const remote = (req.socket.remoteAddress || '').replace(/^::ffff:/,'');
     if (!(remote==='::1'||/^127\.|^192\.168\.|^10\.|^172\.(1[6-9]|2\d|3[01])\./.test(remote)))return json(403,{error:'Home network only'});
     const origin=req.headers.origin;
@@ -204,7 +213,7 @@ const server = http.createServer(async(req,res)=>{
     }
     if(req.method==='POST'&&url.pathname==='/api/store-prices/check'){
 
-      const data=await body(req),client=String(data.client),store=data.store;const catalog=store==='HEB'?sharedLearning().itemCatalog.filter(p=>p.client===client&&p.store===store).map(p=>({id:p.productId,name:p.name})):read('products');
+      const data=await body(req),client=String(data.client),store=data.store;const catalog=store==='HEB'?[...sharedLearning().itemCatalog.filter(p=>p.client===client&&p.store===store).map(p=>({id:p.productId,name:p.name})),...db.prepare("SELECT id,name FROM saved_store_products WHERE client=? AND store='HEB'").all(client)]:read('products');
       const ids=Array.isArray(data.ids)?data.ids:[];if(!ids.length||ids.length>50||new Set(ids).size!==ids.length)throw Error('Choose 1–50 products');const items=ids.map(id=>{const item=catalog.find(i=>i.id===id);if(!item)throw Error('Choose a saved product');return {id:item.id,name:item.name};});
       const task=storeTasks.enqueue(client,store,'prices','manual-'+crypto.randomUUID(),{items});wakeStoreTasks();return json(200,task);
     }
@@ -306,6 +315,11 @@ const server = http.createServer(async(req,res)=>{
       }else throw Error('Unknown preference type');
       return json(200,{ok:true});
     }
+    if(req.method==='POST'&&['/api/snoozes','/api/reusable-lists','/api/replacement-preferences'].includes(url.pathname)){const result=shoppingTools.handle(url.pathname,await body(req));notify();return json(200,result);}
+    if(req.method==='GET' && url.pathname==='/api/installation'){
+      const local=remote==='::1'||remote==='127.0.0.1';
+      return json(200,{local,extensionFolder:local?path.join(__dirname,'walmart-extension'):null,addresses:networkConfig.addresses().map(address=>'http://'+address+':'+port),port});
+    }
     if(req.method==='GET' && url.pathname==='/api/health')return json(200,{application:'home-grocery',pid:process.pid,uptime:Math.floor(process.uptime())});
     if(req.method==='GET' && url.pathname==='/api/state')return json(200,state());
     if(req.method==='POST' && ['/api/heb/coupons/check','/api/bridge/heb/coupons/claim','/api/bridge/heb/coupons/result','/api/heb/list','/api/bridge/heb/claim','/api/bridge/heb/cart','/api/bridge/heb/progress','/api/bridge/heb/result'].includes(url.pathname)){const data=await body(req),before=url.pathname==='/api/bridge/heb/cart'?JSON.parse(db.prepare('SELECT data FROM heb_carts WHERE client=?').get(String(data.clientId||''))?.data||'[]'):null;const result=hebCart.handle(url.pathname,data);if(before){const saved=db.prepare('SELECT data,synced FROM heb_carts WHERE client=?').get(data.clientId);if(saved&&Date.parse(saved.synced)===data.observedAt)queueCartProducts(data.clientId,'HEB',before,JSON.parse(saved.data),data.observedAt);}notify();if(['/api/heb/list','/api/heb/coupons/check'].includes(url.pathname)){const mapping=db.prepare('SELECT profile FROM browser_launchers WHERE client=?').get(data.target);if(mapping&&!mapping.profile.startsWith('headless'))launcher.launch(mapping.profile).catch(error=>db.prepare("UPDATE heb_jobs SET state='needs-attention',result=? WHERE id=? AND state='queued'").run(JSON.stringify({report:[],error:error.message}),result.id));}return json(200,result);}
@@ -403,7 +417,7 @@ const server = http.createServer(async(req,res)=>{
       db.prepare('UPDATE jobs SET result=? WHERE id=?').run(JSON.stringify({report}),data.id);return json(200,{ok:true});
     }
     if(req.method==='GET'){
-      const files={'/shopping-guidance.js':'shopping-guidance.js','/calendar.js':'calendar.js','/product-photos.js':'product-photos.js','/current-prices.js':'current-prices.js','/store-sync-ui.js':'store-sync-ui.js','/usual-list.js':'usual-list.js','/statistics.js':'statistics.js','/statistics-ui.js':'statistics-ui.js','/history-ui.js':'history-ui.js','/':'index.html','/app.js':'app.js','/list-planner.js':'list-planner.js','/planner-ui.js':'planner-ui.js','/style.css':'style.css','/packs-ui.js':'packs-ui.js','/household-items-ui.js':'household-items-ui.js','/history-import-ui.js':'history-import-ui.js','/history-template.csv':'history-template.csv','/history-template.json':'history-template.json'};const file=files[url.pathname];if(!file)return json(404,{error:'Not found'});
+      const files={'/install':'install.html','/install.js':'install.js','/shopping-assist.js':'shopping-assist.js','/shopping-tools-ui.js':'shopping-tools-ui.js','/shopping-guidance.js':'shopping-guidance.js','/calendar.js':'calendar.js','/product-photos.js':'product-photos.js','/current-prices.js':'current-prices.js','/store-sync-ui.js':'store-sync-ui.js','/usual-list.js':'usual-list.js','/statistics.js':'statistics.js','/statistics-ui.js':'statistics-ui.js','/history-ui.js':'history-ui.js','/':'index.html','/app.js':'app.js','/list-planner.js':'list-planner.js','/planner-ui.js':'planner-ui.js','/style.css':'style.css','/packs-ui.js':'packs-ui.js','/household-items-ui.js':'household-items-ui.js','/history-import-ui.js':'history-import-ui.js','/history-template.csv':'history-template.csv','/history-template.json':'history-template.json'};const file=files[url.pathname];if(!file)return json(404,{error:'Not found'});
       res.writeHead(200,{'Content-Type':file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':file.endsWith('.csv')?'text/csv':file.endsWith('.json')?'application/json':'text/html',
         'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'",'Cache-Control':'no-cache'});
       return fs.createReadStream(path.join(__dirname,'web',file)).pipe(res);
@@ -411,7 +425,7 @@ const server = http.createServer(async(req,res)=>{
     json(404,{error:'Not found'});
   }catch(error){json(400,{error:error.message});}
 });
-server.listen(port,process.env.HOST||'0.0.0.0',()=>console.log(`Home Grocery: http://localhost:${port} | Home network: http://192.168.1.250:${port}`));
+server.listen(port,process.env.HOST||'0.0.0.0',()=>console.log(`Home Grocery: http://localhost:${port} | Home network: ${networkConfig.addresses().map(address=>`http://${address}:${port}`).join(', ')}`));
 attachEvents(server);
 // Keep the existing port for installed extensions. The friendly address serves
 // the same app on port 80 and announces itself only on the home LAN interface.

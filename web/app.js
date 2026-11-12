@@ -49,20 +49,30 @@ function renderStoreCart(){
  $('account-status').textContent=saved?'H-E-B cart checked '+new Date(saved.synced).toLocaleTimeString():'Open your signed-in H-E-B cart in the PC browser to connect.';
  const active=jobs.find(j=>['queued','running'].includes(j.state));let progress=$('heb-progress');if(!progress){progress=node('p',undefined,'fine');progress.id='heb-progress';$('list').before(progress);}progress.hidden=!active;if(active){progress.replaceChildren(node('span',(active.state==='queued'?'Waiting for H-E-B browser…':'Updating H-E-B cart…')+' '+(active.result?.report?.length||0)+' / '+active.items.length));const bar=node('progress');bar.max=active.items.length;bar.value=active.result?.report?.length||0;bar.setAttribute('aria-label','H-E-B cart update progress');progress.append(bar);}
 }
-let selectedCategory='All',productLimit=24,productFilterSignature='';
+let selectedCategory='All',productPage=0,showAllProducts=false,productFilterSignature='';
+function pageControls(host,{label,page,pages,all,onPage,onAll}){
+ if(pages<=1)return;
+ const nav=node('nav',undefined,'collection-pagination');nav.setAttribute('aria-label',label+' pages');
+ if(!all){const previous=node('button','Previous','secondary'),next=node('button','Next','secondary'),status=node('span','Page '+(page+1)+' of '+pages,'fine');previous.disabled=page===0;next.disabled=page>=pages-1;previous.onclick=()=>onPage(page-1);next.onclick=()=>onPage(page+1);status.setAttribute('aria-live','polite');nav.append(previous,status,next);}
+ const toggle=node('button',all?'Use pages':'Show all','text-button');toggle.setAttribute('aria-label',(all?'Use pages for ':'Show all ')+label);toggle.onclick=onAll;nav.append(toggle);host.append(nav);
+}
 const categoryFor=item=>{
  const name=item.name.toLowerCase();
- if(/\b(hemorrhoid|hydrocortisone|lidocaine|anti-itch|vitamins?|supplement|tablets?|capsules?|shampoo|conditioner|toothpaste|toothbrush|deodorant|cotton swabs|q-tips|lotion|sunscreen|body wash|hand soap|razors?|bandages?)\b/.test(name))return 'Health & personal care';
+ if(/\b(hemorrhoid|hydrocortisone|lidocaine|anti-itch|vitamins?|supplement|tablets?|capsules?|antibiotic|ointment|first aid|shampoo|conditioner|toothpaste|toothbrush|deodorant|cotton swabs|q-tips|lotion|sunscreen|body wash|hand soap|razors?|bandages?)\b/.test(name))return 'Health & personal care';
  if(/\b(cat|dog|pet)\b.*\b(food|treats|litter)\b/.test(name))return 'Pet supplies';
  if(/\b(wipes|bleach|detergent|toilet paper|paper towels|trash bags|cleaner|dish soap)\b/.test(name))return 'Household';
  if(/\b(frozen|ice cream|popsicles?)\b/.test(name))return 'Frozen';
  if(/\b(juice|coffee|tea|soda|sparkling water|coconut water|drinking water|bottled water)\b/.test(name))return 'Drinks';
- if(/\b(chips|crackers|cookies|candy|chocolate|popcorn|snack|granola bars)\b/.test(name)&&!/chocolate milk/.test(name))return 'Snacks & sweets';
- if(/\b(canned|beans|pasta|macaroni|rice|cereal|flour|sugar|oil|sauce|soup|peanut butter|vinegar|salt|seasoning|spice)\b/.test(name))return 'Pantry';
+ if(/\b(chips|crackers|cookies|candy|chocolate|popcorn|snack|granola bars|almonds|peanuts|pistachios|cashews|walnuts|pecans|nuts|trail mix)\b/.test(name)&&!/chocolate milk/.test(name))return 'Snacks & sweets';
+ if(/\b(?:corn on the cob|(?:fresh .*|sweet )?cob corn)\b/.test(name))return 'Produce';
+ if(/\b(?:condensed|evaporated) milk\b|\bgoya\b.*\bcoconut milk\b/.test(name))return 'Pantry';
+ if(/\b\d+(?:\.\d+)?\s*oz\s+can\b/.test(name))return 'Pantry';
+ if(/\b(canned|chick[ -]?peas|garbanzo|lentils|beans|pasta|macaroni|rice|cereal|flour|sugar|oil|sauce|soup|peanut butter|vinegar|salt|seasoning|spice)\b/.test(name))return 'Pantry';
  if(/\b(beef|chicken|pork|turkey|bacon|sausage|salmon|shrimp|fish)\b/.test(name))return 'Meat & seafood';
- if(/\b(milk|butter|eggs|cheese|yogurt|cream)\b/.test(name))return 'Dairy & eggs';
+ if(/\bkraft\s+singles\b/.test(name))return 'Dairy & eggs';
+ if(/\b(milk|butter|eggs?|cheese|mozzarella|cheddar|parmesan|feta|gouda|brie|paneer|queso|yogurt|cream)\b/.test(name))return 'Dairy & eggs';
  if(/\b(bread|tortillas?|bagels?|buns?|rolls)\b/.test(name))return 'Bakery';
- if(/\b(bananas?|papaya|apples?|avocados?|lettuce|tomato(?:es)?|onions?|potatoes|potato|blueberries|blackberries|raspberries|strawberries|grapes|cucumbers?|beets|watermelon|cantaloupe|celery|cilantro|carrots?|cauliflower|eggplant|mango|mandarins|lemons|broccoli|cabbage|ginger|peppers?|pineapple|honeydew|pomegranate)\b/.test(name))return 'Produce';
+ if(/\b(bananas?|papaya|apples?|avocados?|romaine|salad blend|mushrooms?|lettuce|tomato(?:es)?|onions?|potatoes|potato|blueberries|blackberries|raspberries|strawberries|grapes|cucumbers?|beets|watermelon|cantaloupe|celery|cilantro|carrots?|cauliflower|eggplant|mango(?:es)?|plums?|peach(?:es)?|spinach|kale|mandarins|lemons|broccoli|cabbage|ginger|peppers?|pineapple|honeydew|pomegranate)\b/.test(name))return 'Produce';
  return 'Other';
 };
 const productCategories=['All','Produce','Dairy & eggs','Bakery','Meat & seafood','Frozen','Pantry','Drinks','Snacks & sweets','Household','Health & personal care','Pet supplies','Other'];
@@ -72,11 +82,12 @@ function renderProducts(){
  $('favorites-heading').firstChild.textContent=heb?'Saved H-E-B products ':'Saved Walmart products ';$('product-count').textContent=catalog.length;$('search').placeholder=heb?'Search saved H-E-B products…':'Search Walmart products…';
  const query=$('search').value.toLowerCase().trim();
  const matching=catalog.filter(item=>item.name.toLowerCase().includes(query));
- const categories=productCategories;const filterKey=state.preferredStore+'|'+selectedAccount+'|'+query+'|'+selectedCategory;if(filterKey!==productFilterSignature){productFilterSignature=filterKey;productLimit=24;}
+ const categories=productCategories;const filterKey=state.preferredStore+'|'+selectedAccount+'|'+query+'|'+selectedCategory;if(filterKey!==productFilterSignature){productFilterSignature=filterKey;productPage=0;showAllProducts=false;}
  $('categories').replaceChildren();
  for(const category of categories){const count=category==='All'?matching.length:matching.filter(item=>categoryFor(item)===category).length;if(!count&&category!=='All'&&category!==selectedCategory)continue;const button=node('button',category+' '+count);button.classList.toggle('active',category===selectedCategory);button.setAttribute('aria-pressed',String(category===selectedCategory));button.onclick=()=>{selectedCategory=category;renderProducts();};$('categories').append(button);}
  $('products').replaceChildren();const items=matching.filter(item=>selectedCategory==='All'||categoryFor(item)===selectedCategory).sort((a,b)=>categories.indexOf(categoryFor(a))-categories.indexOf(categoryFor(b))||a.name.localeCompare(b.name));
- const shown=items.slice(0,productLimit);
+ productPage=Math.min(productPage,Math.max(0,Math.ceil(items.length/24)-1));
+ const productStart=showAllProducts?0:productPage*24,shown=showAllProducts?items:items.slice(productStart,productStart+24);
  if(!items.length){const empty=node('div',catalog.length?'No products match these filters.':heb?'Import your H-E-B purchase history to build this view.':'Your saved products will appear when a Walmart browser connects.','empty');if(catalog.length){const clear=node('button','Clear filters','secondary');clear.onclick=()=>{$('search').value='';selectedCategory='All';renderProducts();};empty.append(document.createElement('br'),clear);}else{const connect=node('button','Connect an account','secondary');connect.onclick=()=>showView('setup');empty.append(document.createElement('br'),connect);}$('products').append(empty);return;}
  for(const category of categories.slice(1)){
   const grouped=shown.filter(item=>categoryFor(item)===category);if(!grouped.length)continue;
@@ -86,46 +97,66 @@ function renderProducts(){
    const price=(state.currentPrices||[]).find(p=>p.client===selectedAccount&&p.store===state.preferredStore&&p.id===item.id);
    if(price)card.append(node('p','$'+price.price.toFixed(2)+' · store price checked '+new Date(price.at).toLocaleDateString()+(Date.now()-Date.parse(price.at)>86400000?' · check again before buying':''),'fine'));
    const check=node('button',price?'Update price':'Check current price','text-button');check.onclick=async()=>{try{await api('/api/store-prices/check',{client:selectedAccount,store:state.preferredStore,ids:[item.id]});notice('Price check queued. See progress in Settings.');await refresh();}catch(e){notice(e.message);}};card.append(check);
-   if(heb){const amount=hebLines().find(l=>l.id===item.id)?.quantity||0;const add=node('button',amount?'Add another · '+amount+' in cart':'+ Add to H-E-B');add.onclick=()=>setQuantity(item.id,amount+1);card.append(add);}else{const inCart=state.list.find(line=>line.id===item.id);const add=node('button',!item.offerId?'Set up on Walmart':inCart?'Add another · '+inCart.quantity+' in cart':'+ Add to Walmart');add.disabled=!item.offerId;add.onclick=()=>setQuantity(item.id,(state.list.find(line=>line.id===item.id)?.quantity||0)+1);if(!item.offerId)card.append(node('p','Open this product on Walmart and use the helper to save it before adding it here.','fine'));card.append(add);}grid.append(card);
+   if(heb){const amount=hebLines().find(l=>l.id===item.id)?.quantity||0;const add=node('button',amount?'Add another · '+amount+' in cart':'+ Add to H-E-B');add.onclick=()=>setQuantity(item.id,amount+1);card.append(add);}else{const inCart=state.list.find(line=>line.id===item.id);const add=node('button',!item.offerId?'Set up on Walmart':inCart?'Add another · '+inCart.quantity+' in cart':'+ Add to Walmart');add.disabled=!item.offerId;add.onclick=()=>setQuantity(item.id,(state.list.find(line=>line.id===item.id)?.quantity||0)+1);if(!item.offerId)card.append(node('p','Open this product on Walmart and use the helper to save it before adding it here.','fine'));card.append(add);}window.decorateShoppingProduct?.(card,item);grid.append(card);
   }group.append(grid);$('products').append(group);
  }
- const summary=node('p','Showing '+shown.length+' of '+items.length+' saved products. Search or choose a category to narrow the list.','fine');$('products').append(summary);if(shown.length<items.length){const more=node('button','Show 24 more products','secondary');more.onclick=()=>{productLimit+=24;renderProducts();};$('products').append(more);}
+ const summary=node('p','Showing '+(productStart+1)+'–'+(productStart+shown.length)+' of '+items.length+' saved products. Search or choose a category to narrow the list.','fine');$('products').append(summary);
+ pageControls($('products'),{label:'saved products',page:productPage,pages:Math.ceil(items.length/24),all:showAllProducts,onPage:value=>{productPage=value;renderProducts();$('favorites-heading').scrollIntoView({block:'start',behavior:'smooth'});},onAll:()=>{showAllProducts=!showAllProducts;productPage=0;renderProducts();}});
 }
-let showAllSuggestions=false;
+let showAllSuggestions=false,suggestionPage=0,suggestionScope='';
 let previousHebState;
 const expandedSuggestionReasons=new Set();
+const expandedSuggestionArchives=new Set();
 function renderSuggestions(){
+ const scope=selectedAccount+'|'+state.preferredStore;if(scope!==suggestionScope){suggestionScope=scope;suggestionPage=0;showAllSuggestions=false;}
  const host=$('suggestions');host.replaceChildren();
- const all=(state.suggestions||[]).filter(item=>item.client===selectedAccount&&item.store===state.preferredStore&&!selectedLines().some(line=>line.id===item.id));
- const current=all.filter(item=>!item.needsMatch&&ShoppingGuidance.group(item)!=='older').sort((a,b)=>Number(b.confidence==='established')-Number(a.confidence==='established')||Math.abs(a.daysUntil)-Math.abs(b.daysUntil));
- const older=all.filter(item=>!current.includes(item)).sort((a,b)=>Date.parse(b.lastPurchasedAt)-Date.parse(a.lastPurchasedAt));const suggested=showAllSuggestions?[...current,...older]:current;
- if(!all.length){host.append(node('p','No routine items to check right now. You can browse saved products below.','fine'));return;}
- if(!suggested.length)host.append(node('p','No recent purchase patterns to check. Older habits are available below if you want to review them.','fine'));
- const summary=node('p',(showAllSuggestions?suggested.length+' suggestions, including older habits and items needing a match':current.length+' recent items to check')+' · '+(state.preferredStore==='HEB'?'H-E-B':'Walmart'),'suggestion-summary');host.append(summary);
- let previousGroup;for(const item of suggested.slice(0,showAllSuggestions?undefined:8).sort((a,b)=>ShoppingGuidance.groups.findIndex(g=>g.id===ShoppingGuidance.group(a))-ShoppingGuidance.groups.findIndex(g=>g.id===ShoppingGuidance.group(b)))){const group=ShoppingGuidance.groups.find(g=>g.id===ShoppingGuidance.group(item));if(previousGroup!==group.id){host.append(node('h3',group.title,'suggestion-group-heading'));previousGroup=group.id;}
+ const all=(state.suggestions||[]).filter(item=>item.client===selectedAccount&&item.store===state.preferredStore&&!ShoppingAssist.isSnoozed(state,item)&&!selectedLines().some(line=>line.id===item.id));
+ const rank=(a,b)=>Number(ShoppingGuidance.group(a)!=='regular')-Number(ShoppingGuidance.group(b)!=='regular')||Math.abs(a.daysUntil)-Math.abs(b.daysUntil)||a.name.localeCompare(b.name);
+ const current=all.filter(item=>!item.needsMatch&&ShoppingGuidance.group(item)!=='older').sort(rank);
+ const older=all.filter(item=>!item.needsMatch&&ShoppingGuidance.group(item)==='older').sort(rank),unmatched=all.filter(item=>item.needsMatch).sort(rank);
+ if(!all.length){host.append(node('p','No purchase patterns to check right now. You can browse saved products below.','fine'));return;}
+ suggestionPage=Math.min(suggestionPage,Math.max(0,Math.ceil(current.length/8)-1));
+ const suggestionStart=showAllSuggestions?0:suggestionPage*8,shown=showAllSuggestions?current:current.slice(suggestionStart,suggestionStart+8);
+ host.append(node('p','Showing '+(shown.length?suggestionStart+1:0)+'–'+(suggestionStart+shown.length)+' of '+current.length+' recent items by grocery type · '+(state.preferredStore==='HEB'?'H-E-B':'Walmart'),'suggestion-summary'));
+ if(!current.length)host.append(node('p','No recent purchase patterns to check. Older habits and products needing a choice are below.','fine'));
+ const renderCategories=(items,parent)=>{
+  for(const category of productCategories.slice(1)){
+   const grouped=items.filter(item=>categoryFor(item)===category).sort(rank);if(!grouped.length)continue;
+   const section=node('section',undefined,'suggestion-category');section.dataset.category=category;
+   const heading=node('h3',category==='Pantry'?'Canned goods & pantry':category,'suggestion-category-heading');heading.append(node('span',String(grouped.length),'suggestion-category-count'));section.append(heading);parent.append(section);
+   for(const item of grouped){
   const row=node('div',undefined,'suggestion-row'),info=node('div',undefined,'suggestion-info');
   info.append(node('strong',item.name));if(item.matchKind==='substitute')info.append(node('small',item.matchNote||'Alternative product: review the type and quantity.','fine'));
   const days=HouseholdCalendar.elapsed(item.lastPurchasedDay??Date.parse(item.lastPurchasedAt.slice(0,10)));
   const timing=days===0?'Bought today':days===1?'Bought yesterday':'Bought '+days+' days ago';
-  info.append(node('span',timing+' · typical gap '+item.intervalDays+' days','suggestion-meta'));
-  const label=ShoppingGuidance.timingLabel(item);
+  info.append(node('span',timing+' · typical gap '+item.intervalDays+' days','suggestion-meta'),node('small','Bought on '+item.purchaseCount+' dates in the past year','reason-summary'));
+  const kind=ShoppingGuidance.group(item),label=kind==='older'?'Older habit · '+ShoppingGuidance.reliabilityLabel(item):kind==='match'?'Choose product first':(kind==='alternative'?'Alternative · ':'')+ShoppingGuidance.reliabilityLabel(item);
   const badge=node('span',label,'suggestion-due');badge.dataset.timing=ShoppingGuidance.group(item)==='regular'?'soon':'uncertain';info.append(badge);
-  const detail=node('details',undefined,'suggestion-reason');detail.append(node('summary','Why this item?'),node('p','Based on '+item.purchaseCount+' purchase days within the last year from '+(item.sources||[]).map(store=>store==='HEB'?'H-E-B':store).join(' and ')+'. '+ShoppingGuidance.reliabilityLabel(item)+'. '+(item.gapCount?'Observed gaps range from '+item.minGap+' to '+item.maxGap+' days. ':'')+'This estimates timing, not what you have at home. '+ShoppingGuidance.quantityNote(item)));const reasonKey=selectedAccount+'|'+item.store+'|'+(item.householdItemId||item.id||item.name);detail.open=expandedSuggestionReasons.has(reasonKey);detail.ontoggle=()=>{if(detail.isConnected){if(detail.open)expandedSuggestionReasons.add(reasonKey);else expandedSuggestionReasons.delete(reasonKey);}};info.append(detail);
+  const detail=node('details',undefined,'suggestion-reason');detail.append(node('summary','Why this item?'),node('p','Based on '+item.purchaseCount+' purchase days within the last year from '+(item.sources||[]).map(store=>store==='HEB'?'H-E-B':store).join(' and ')+'. '+ShoppingGuidance.reliabilityLabel(item)+'. '+(item.gapCount?'Observed gaps range from '+item.minGap+' to '+item.maxGap+' days. ':'')+'This estimates timing, not what you have at home. '+ShoppingGuidance.quantityNote(item)));const reasonKey=selectedAccount+'|'+item.store+'|'+(item.householdItemId||item.id||item.name);detail.open=expandedSuggestionReasons.has(reasonKey);detail.ontoggle=()=>{if(detail.isConnected){if(detail.open)expandedSuggestionReasons.add(reasonKey);else expandedSuggestionReasons.delete(reasonKey);}};info.append(detail);if(item.id&&window.snoozeControl)info.append(window.snoozeControl(item));window.decorateShoppingProduct?.(info,item);
   const actions=node('div',undefined,'suggestion-actions');
   if(item.needsMatch){const match=node('button','Choose product','secondary');match.onclick=()=>{showView('setup');const section=$('settings-matches');section.querySelector('details').open=true;section.scrollIntoView({block:'start',behavior:'smooth'});};actions.append(match);}
   else if(item.store==='HEB'){
-   actions.append(node('span',item.unit==='each'?'Start: '+ShoppingGuidance.startingAmount(item)+' items/packages':'Start: 1 item/package · sold by weight','suggestion-amount'));
+   actions.append(node('span',item.unit==='each'?'Start: '+ShoppingGuidance.startingAmount(item)+(ShoppingGuidance.startingAmount(item)===1?' item/pack':' items/packs'):'Start: 1 item/package · sold by weight','suggestion-amount'));
    const add=node('button','+ Add','secondary');add.setAttribute('aria-label','Add '+item.name+' to H-E-B cart');add.onclick=()=>setQuantity(item.id,Math.max(hebLines().find(l=>l.id===item.id)?.quantity||0,item.unit==='each'?Math.min(100,item.quantity):1));actions.append(add);
   }else{
    const quantity=node('input');quantity.type='number';quantity.min=1;quantity.max=100;quantity.value=ShoppingGuidance.startingAmount(item);quantity.setAttribute('aria-label','Suggested quantity for '+item.name);
    const add=node('button','+ Add','secondary');add.disabled=!state.products.find(product=>product.id===item.id)?.offerId;add.setAttribute('aria-label','Add '+item.name+' to Walmart cart');add.onclick=()=>setQuantity(item.id,Number(quantity.value));actions.append(quantity,add);
    if(add.disabled)actions.append(node('small','Connect product on Walmart first','fine'));
   }
-  row.append(productPhoto(item.store,item.id,item.name,true),info,actions);host.append(row);
+  row.append(productPhoto(item.store,item.id,item.name,true),info,actions);section.append(row);
+   }
+  }
+ };
+ renderCategories(shown,host);
+ pageControls(host,{label:'recent items',page:suggestionPage,pages:Math.ceil(current.length/8),all:showAllSuggestions,onPage:value=>{suggestionPage=value;renderSuggestions();host.closest('section')?.scrollIntoView({block:'start',behavior:'smooth'});},onAll:()=>{showAllSuggestions=!showAllSuggestions;suggestionPage=0;renderSuggestions();}});
+ for(const [key,title,items] of [['older','Older habits',older],['match','Choose a product first',unmatched]]){
+  if(!items.length)continue;const details=node('details',undefined,'suggestion-archive'),openKey=selectedAccount+'|'+state.preferredStore+'|'+key;details.dataset.archive=key;details.open=expandedSuggestionArchives.has(openKey);details.append(node('summary',title+' · '+items.length));
+  details.ontoggle=()=>{if(details.isConnected){if(details.open)expandedSuggestionArchives.add(openKey);else expandedSuggestionArchives.delete(openKey);}};
+  renderCategories(items,details);host.append(details);
  }
- if(all.length>8||older.length){const toggle=node('button',showAllSuggestions?'Show recent routine items':'Show all '+all.length+' suggestions, including older habits','secondary suggestion-toggle');toggle.setAttribute('aria-expanded',String(showAllSuggestions));toggle.onclick=()=>{showAllSuggestions=!showAllSuggestions;renderSuggestions();};host.append(toggle);}
 }
 function render(){
+ const householdTag=document.querySelector('.brand small');if(householdTag)householdTag.textContent=state.householdName||'A little less to remember.';
  if(state.recoveryMode&&!$('recovery-banner')){const banner=node('aside','Recovery preview · read only. Cart updates, browser launches and sync are disabled.','panel');banner.id='recovery-banner';banner.setAttribute('role','status');document.querySelector('main').prepend(banner);}
 
  const previous=(!defaultAccountApplied&&state.defaultClientId)||$('account').value||localStorage.getItem('walmartAccount');
@@ -168,7 +199,7 @@ function render(){
  $('complete').disabled=(!state.list.length&&!cart?.canComplete)||state.jobs.some(job=>job.target===selectedAccount&&['queued','running'].includes(job.state));
  $('send').disabled=!account||state.jobs.some(job=>job.target===account.id&&['queued','running'].includes(job.state));
  $('jobs').replaceChildren();for(const job of state.jobs.filter(job=>job.target===selectedAccount).slice(0,5)){const card=node('div',undefined,'job');const labels={queued:'Waiting for your browser',running:'Updating Walmart cart…',finished:'Cart request complete','needs-attention':'Cart request needs attention'};card.append(node('strong',(job.accountName?job.accountName+' · ':'')+(labels[job.state]||job.state)),node('span',new Date(job.created).toLocaleString()));if(job.result){const results=node('ul');for(const item of job.result.report)results.append(node('li',`${item.name}: ${item.status}${item.quantity?' ('+item.quantity+')':''}`));if(job.result.message)results.append(node('li',job.result.message));if(job.result.error)results.append(node('li',job.result.error));card.append(results);} $('jobs').append(card);}
- renderStoreCart();window.renderStoreSync?.();window.renderPurchaseHistory?.();window.renderStatistics?.();
+ renderStoreCart();window.renderStoreSync?.();window.renderPurchaseHistory?.();window.renderStatistics?.();window.renderShoppingTools?.();
  $('cart-history').replaceChildren();if(!state.history.length)$('cart-history').append(node('div','No past cart additions recorded.','empty'));
  for(const trip of state.history){const card=node('article');card.append(node('h2',new Date(trip.startedAt).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})),node('p',`${trip.items.length} products · Walmart`));const list=node('ul');for(const item of trip.items)list.append(node('li',`${item.quantity} × ${item.name}`));const repeat=node('button','Add these to my list');repeat.onclick=async()=>{try{if(state.preferredStore==='HEB')throw Error('This past cart is from Walmart. Select Walmart before repeating it.');await api('/api/repeat',{target:selectedAccount,items:trip.items.map(item=>({id:item.id,quantity:item.quantity}))});await refresh();showView('shop');notice('Past items sent to the selected Walmart cart.');}catch(error){notice(error.message);}};card.append(list,repeat);$('cart-history').append(card);}
 }
@@ -176,7 +207,7 @@ let lastStateCheckedAt=null;
 let refreshPromise;
 function refresh(force=false){
  if(refreshPromise)return force===true?refreshPromise.then(()=>refresh(true)):refreshPromise;
- refreshPromise=(async()=>{try{[state,{profiles:browserProfiles}]=await Promise.all([api('/api/state'),api('/api/browsers')]);lastStateCheckedAt=new Date();if(force===true||!document.querySelector('.stepper input:focus, #suggestions input:focus, .pack-item input:focus, select:focus'))render();else{if(!document.activeElement?.closest('#list'))renderStoreCart();else $('top-cart-count').textContent=selectedLines().length;if(!document.activeElement?.closest('#suggestions'))renderSuggestions();window.renderStoreSync?.();window.renderPurchaseHistory?.();if(!document.activeElement?.closest('#packs-view'))window.renderPacks?.();}window.refreshUsualDraftTiming?.();window.renderStatistics?.();window.SyncFeedback?.update(state,selectedAccount);if($('notice').dataset.kind==='connection'){$('notice').hidden=true;$('notice').textContent='';delete $('notice').dataset.kind;}}catch(error){notice('Cannot reach the household server: '+error.message,'connection');}finally{refreshPromise=null;}})();return refreshPromise;
+ refreshPromise=(async()=>{try{[state,{profiles:browserProfiles}]=await Promise.all([api('/api/state'),api('/api/browsers')]);lastStateCheckedAt=new Date();if(force===true||!document.querySelector('.stepper input:focus, #suggestions input:focus, .pack-item input:focus, .replacement-panel input:focus, .replacement-panel select:focus, select:focus'))render();else{if(!document.activeElement?.closest('#list'))renderStoreCart();else $('top-cart-count').textContent=selectedLines().length;if(!document.activeElement?.closest('#suggestions'))renderSuggestions();window.renderStoreSync?.();window.renderPurchaseHistory?.();if(!document.activeElement?.closest('#packs-view'))window.renderPacks?.();}window.refreshUsualDraftTiming?.();window.renderStatistics?.();window.SyncFeedback?.update(state,selectedAccount);if($('notice').dataset.kind==='connection'){$('notice').hidden=true;$('notice').textContent='';delete $('notice').dataset.kind;}}catch(error){notice('Cannot reach the household server: '+error.message,'connection');}finally{refreshPromise=null;}})();return refreshPromise;
 }
 function showView(view){
  if(!['shop','lists','packs','history','stats','setup'].includes(view))view='shop';

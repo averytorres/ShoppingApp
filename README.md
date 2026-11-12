@@ -3,6 +3,12 @@
   <img src="docs/assets/banner.gif" alt="Home Grocery — a little less to remember. Your routines, your shopping list, your store cart." width="1200">
 </picture>
 
+**Windows setup:** run `dist/Install Home Grocery.exe` on the hosting PC, choose
+your household name and main store, then follow the browser connection guide.
+Node is bundled. Phones and other laptops use the website. Chrome still requires
+manual helper approval and store sign-in. See [installer instructions](installer/README.md)
+for building, updates, uninstall, system requirements and current limitations.
+
 <p align="center">
   A household grocery planner that turns familiar routines into a shopping list—<br>
   then sends your choices to <strong>H-E-B or Walmart</strong> for normal checkout.
@@ -26,7 +32,8 @@
 
 ### Your next shop, in one place
 
-See your store cart, review items that may be due, and browse saved products.
+See your store cart, scan suggestions by grocery type, and browse saved products.
+Timing reliability stays visible on each row; older habits remain collapsed.
 
 ![Desktop shopping page with a store cart, coupon status, and routine-based suggestions](docs/assets/shop-desktop.png)
 
@@ -69,19 +76,32 @@ They show the real interface without exposing household purchases or account det
 | For the household | How it helps |
 | --- | --- |
 | **Suggest a shopping list** | Separates regular restocks, variable or limited history, older habits, and alternatives. Only fairly regular recent items start selected. Quantities are starting amounts, with their evidence available to review. |
+| **“We have enough”** | Snooze an automatic suggestion for a week or until a chosen date. Matching products at the other store are paused for the same account too. Resume early from the paused-items panel. |
+| **Review by grocery type** | Suggested drafts, pasted lists, and carts use grocery categories. Review lists have category selection and quantity steppers; cart selection is for explicit bulk removal. |
 | **Paste a family member’s list** | Matches short names to saved products. Save what “milk” means for each store and define extras such as “when butter is requested, suggest papaya.” |
+| **Reusable household lists** | Save a reviewed list under a friendly name, keeping original requests alongside product choices and quantities. Reload it in **Lists**, review, then send. |
 | **Shopping packs** | Shows when products were bought together without implying they are needed together now. Choose all or some items, review quantities, and save your own named packs. |
 | **Store-aware carts** | Keep H-E-B and Walmart carts separate. Add, change, or remove items and follow the selected store to checkout. |
+| **Checkout readiness** | Shows remaining cart changes, coupon checks, stale confirmations, or a cart ready for review beside the checkout link. |
+| **Unavailable-item alternatives** | Review similar saved products with package sizes, checked prices, normalized unit prices, and dietary wording from their names. Edit the proposed quantity and optionally remember the replacement. Saved package-size ratios are used where available. |
 | **Automatic H-E-B coupons** | Clips offers for cart products, reloads to verify the saved state, and shows requirements, per-product check times, and progress. Cart changes are flagged for eligibility review; qualifying products are never added automatically. |
 | **Purchase history** | Imports receipts from both stores, retaining prices, discounts, quantities, and weight units. Cart changes alone do not train purchase habits. |
 | **Spending & habits** | Shows average weekly spending, frequent purchases, restock intervals, and supported savings insights. |
 | **Cross-store product matches** | Links equivalent products with editable package-size ratios so purchases at either store can inform suggestions. |
 | **Photos and prices** | Caches product images locally and collects store prices through the helper. Comparisons show when prices were checked; they are not guaranteed live quotes. |
+| **Price-drop watch** | Flags fresh drops of at least 5% and $0.10 for items bought on at least three recent purchase dates. Compares an earlier checked price or a comparable last-paid price and shows recorded offer conditions and expiry. |
 | **Weekly history sync** | Runs Monday at **2 a.m. America/New_York**, catches up after downtime, and skips already verified receipts. |
 
 Suggestions estimate shopping timing, not inventory in your kitchen. You review
 the list; checkout and payment stay on the store’s website. A clipped coupon can
 still require a minimum quantity, spend, or other conditions.
+
+Alternatives come from saved products and reviewed matches, not the entire live
+store catalog. Dietary notes are name-based clues: ingredients and allergens
+still need a store-label check. Snoozed items stay out of automatic planning and
+price-drop alerts until their resume date; saved lists remain available for
+explicit review. Price watches depend on collected prices rather than continuous
+retailer polling.
 
 ## How it fits together
 
@@ -146,7 +166,9 @@ credentials remain in Chrome’s store sessions.
 
 - Choose the main store and default household account.
 - Check for purchase history in **Settings**, or use **History** to preview an import.
-- In **Paste a list**, review ambiguous matches and save usual product choices.
+- In **Lists**, paste a request or load a saved household list, review matches,
+  and save usual product choices. Save the reviewed list under a friendly name
+  to reuse its original requests and product selections next time.
 - Add household-specific extras and custom packs as you learn what works.
 - Review suggested items and quantities before sending them to the store cart.
 

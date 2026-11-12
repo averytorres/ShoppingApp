@@ -15,7 +15,7 @@ website and reload the extension after updating. Older notes below describe the
 project's development stages and may be superseded by later features.
 
 Start on the hosting PC (Node 22.13+; this PC has Node 26):
-  cd C:\Users\avery\Documents\ChatGPT\ShoppingApp
+  cd <path-to-your-checkout>
   npm start
 
 Friendly home-network address: http://groceries.local

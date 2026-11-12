@@ -1,7 +1,7 @@
 DATABASE AND PHOTO BACKUPS
 
 Run these commands from:
-C:\Users\avery\Documents\ChatGPT\ShoppingApp
+<path-to-your-checkout>
 
 Create a complete data backup while the household server is running:
   node .\backup.js create
