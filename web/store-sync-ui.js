@@ -7,9 +7,17 @@
   if(check?.running&&Date.now()-Date.parse(check.at)<300000){host.append(node('p','Checking coupons · '+check.processed+' of '+check.total+' products','fine'));const p=node('progress');p.max=check.total||1;p.value=check.processed;p.setAttribute('aria-label','Checking H-E-B coupons');host.append(p);}
   else if(check?.running)host.append(node('p','The coupon check was interrupted. Choose Check coupons now to retry.','fine'));
   else if(!cart.length)host.append(node('p','Coupons are clipped automatically when you add H-E-B items.','fine'));
-  else if(check){const items=check.items.filter(i=>ids.has(i.id));const count=new Set(items.flatMap(i=>i.coupons.filter(c=>c.status==='clipped').map(c=>c.id))).size;host.append(node('p',count?count+' coupons clipped for your cart.':'No coupons found on the '+items.length+' checked cart products.','fine'));if(check.error)host.append(node('p','Coupon check needs attention: '+check.error,'fine'));const details=node('details'),summary=node('summary','Coupon details');details.open=!!detailsOpen;details.append(summary);
-   const shown=new Set();for(const item of items)for(const c of item.coupons){if(shown.has(c.id))continue;shown.add(c.id);const row=node('p'),a=node('a',c.offer);a.href=c.url;a.target='_blank';a.rel='noopener noreferrer';row.append(a,node('span',' · '+(c.applied?'H-E-B reports savings applied':'Clipped · requirements may apply')));details.append(row);if(c.requirements)details.append(node('p',c.requirements,'fine'));}
-   details.append(node('p','Clipping saves the offer to H-E-B. Quantity, spending and other conditions still apply. Confirm the final discount at H-E-B checkout.','fine'));host.append(details);
+  else if(check){
+   const items=check.items.filter(i=>ids.has(i.id)),coverage=ShoppingGuidance.couponCoverage(check,cart),offers=new Map();
+   for(const item of items)for(const coupon of item.coupons){const old=offers.get(coupon.id);const entry={...coupon,checkedAt:item.checkedAt};if(!old||(Date.parse(entry.checkedAt)||0)>(Date.parse(old.checkedAt)||0)||entry.checkedAt===old.checkedAt&&entry.applied)offers.set(coupon.id,entry);}
+   const count=[...offers.values()].filter(c=>c.status==='clipped').length;
+   host.append(node('p',count?count+' coupon'+(count===1?'':'s')+' saved for these items.':check.error?'Coupon check incomplete.':coverage.checked?'No coupons found for the '+coverage.checked+' checked products.':'These cart items have not been checked yet.','fine'));
+   host.append(node('p',coverage.checked+' of '+coverage.total+' current products checked at their current quantity.','fine'));
+   if(!coverage.sameCart)host.append(node('p','The cart differs from the last completed check. Recheck coupon eligibility for this cart.','fine'));
+   if(check.error)host.append(node('p','Coupon check needs attention: '+check.error,'fine'));
+   const details=node('details'),summary=node('summary','Coupon details');details.open=!!detailsOpen;details.append(summary);
+   for(const c of offers.values()){const row=node('p'),a=node('a',c.offer);a.href=c.url;a.target='_blank';a.rel='noopener noreferrer';const when=c.checkedAt?new Date(c.checkedAt).toLocaleString():null;row.append(a,node('span',' · '+(c.applied?'Savings applied when checked':'Clipped · requirements may apply')));details.append(row,node('p',when?'Checked '+when:'Checked earlier; refresh to verify current eligibility.','fine'));if(c.requirements)details.append(node('p',c.requirements,'fine'));}
+   details.append(node('p','Saved coupons are potential savings. Eligibility can change with cart edits, quantities, expiration and substitutions. Confirm the final discount at H-E-B checkout.','fine'));host.append(details);
   }else host.append(node('p','The helper will check coupons for items in your H-E-B cart.','fine'));
   const button=node('button','Check coupons now');button.className='secondary full';button.disabled=!cart.length||!!(check?.running&&Date.now()-Date.parse(check.at)<300000);button.onclick=async()=>{button.disabled=true;try{await api('/api/heb/coupons/check',{target:selectedAccount});notice('H-E-B coupon check requested. Your PC helper will clip available offers.');await refresh();}catch(e){notice(e.message);button.disabled=false;}};host.append(button);
  }
@@ -18,7 +26,7 @@
   for(const item of CurrentPriceComparisons.compare(state,selectedAccount)){
    const row=node('div',undefined,'stat-driver'),info=node('div');info.append(node('strong',item.name));
    for(const p of [item.heb,item.walmart]){const link=node('a',(p.store==='HEB'?'H-E-B':'Walmart')+' $'+p.price.toFixed(2)+' · '+p.name);link.href=p.url;link.target='_blank';link.rel='noopener noreferrer';const line=node('p');line.append(link);info.append(line,node('p','Checked '+new Date(p.at).toLocaleString()+(p.promotion?' · Offer: '+p.promotion:''),'fine'));}
-   info.append(node('p',item.percent>=1?(item.cheaper.store==='HEB'?'H-E-B':'Walmart')+' is '+Math.round(item.percent)+'% less for the same matched amount.':'Similar prices for the same matched amount.','fine'));row.append(info);host.append(row);found++;
+   info.append(node('p',item.percent>=1?'At the checked prices, '+(item.cheaper.store==='HEB'?'H-E-B':'Walmart')+' was '+Math.round(item.percent)+'% less for the same matched amount.':'Similar prices for the same matched amount.','fine'));info.append(node('p','Comparison uses saved package-size equivalents. Potential item savings exclude delivery charges, tax and checkout coupons; confirm the final store price.','fine'));row.append(info);host.append(row);found++;
   }
   if(!found)host.append(node('p','No fresh comparable prices yet. Check matched prices at both stores above. Your PC browser collects them without changing either cart.','fine'));
  }

@@ -68,11 +68,11 @@ They show the real interface without exposing household purchases or account det
 
 | For the household | How it helps |
 | --- | --- |
-| **Suggest a shopping list** | Uses repeat purchases from both stores to propose items and quantities for review. Timing updates as days pass. |
+| **Suggest a shopping list** | Separates regular restocks, variable or limited history, older habits, and alternatives. Only fairly regular recent items start selected. Quantities are starting amounts, with their evidence available to review. |
 | **Paste a family member’s list** | Matches short names to saved products. Save what “milk” means for each store and define extras such as “when butter is requested, suggest papaya.” |
-| **Shopping packs** | Review groups bought together, choose all or some items, and save your own named packs. |
+| **Shopping packs** | Shows when products were bought together without implying they are needed together now. Choose all or some items, review quantities, and save your own named packs. |
 | **Store-aware carts** | Keep H-E-B and Walmart carts separate. Add, change, or remove items and follow the selected store to checkout. |
-| **Automatic H-E-B coupons** | Clips offers for cart products, reloads to verify the saved state, and shows requirements and coupon-check progress. It never adds qualifying products automatically. |
+| **Automatic H-E-B coupons** | Clips offers for cart products, reloads to verify the saved state, and shows requirements, per-product check times, and progress. Cart changes are flagged for eligibility review; qualifying products are never added automatically. |
 | **Purchase history** | Imports receipts from both stores, retaining prices, discounts, quantities, and weight units. Cart changes alone do not train purchase habits. |
 | **Spending & habits** | Shows average weekly spending, frequent purchases, restock intervals, and supported savings insights. |
 | **Cross-store product matches** | Links equivalent products with editable package-size ratios so purchases at either store can inform suggestions. |

@@ -1,31 +1,32 @@
 (() => {
   let draft;
-  const cadence=days=>days<=2?'Daily':days<=4?'Every few days':days<=10?'Weekly':days<=20?'Every two weeks':days<=45?'Monthly':'Occasionally';
   const evidence=()=>JSON.stringify((state.usualSuggestions||state.suggestions||[]).filter(i=>i.client===selectedAccount&&i.store===state.preferredStore));
-  const amount=item=>item.unit==='each'?Math.min(100,Math.max(1,Math.round(item.quantity||1))):1;
+  const amount=ShoppingGuidance.startingAmount;
   function build(){
     const current=selectedLines();
-    const rows=(state.usualSuggestions||state.suggestions||[]).filter(item=>item.client===selectedAccount&&!current.some(line=>line.id===item.id&&line.quantity>0)).map(item=>({...item,amount:amount(item),checked:!item.needsMatch&&item.confidence==='established'&&item.daysUntil>=-item.intervalDays*2}));
+    const rows=(state.usualSuggestions||state.suggestions||[]).filter(item=>item.client===selectedAccount&&item.store===state.preferredStore&&!current.some(line=>line.id===item.id&&line.quantity>0)).map(item=>({...item,amount:amount(item),checked:ShoppingGuidance.group(item)==='regular'&&item.matchKind!=='substitute'&&item.daysUntil>=-item.intervalDays*2}));
     draft={client:selectedAccount,store:state.preferredStore,day:HouseholdCalendar.today(),evidence:evidence(),rows};renderDraft();
   }
   function renderDraft(){
     const host=$('usual-draft');host.hidden=false;host.replaceChildren();
     const store=draft.store==='HEB'?'H-E-B':'Walmart';
-    host.append(node('h3','Review your usual list'),node('p','For '+(state.clients.find(c=>c.id===draft.client)?.name||'this account')+' · '+store+'. Items due now or in the next 7 days. Nothing changes in your cart until you accept.','fine'));
-    host.append(node('p','Based on at least three purchase days. Less certain or long-overdue patterns start unchecked. Quantities count packages or individual items; weighed products start at 1 for you to review.','fine'));
-    if(!draft.rows.length)host.append(node('p','Nothing looks due in the next week, or those items are already in your cart. You can still add products below.','fine'));
+    host.append(node('h3','Review your usual list'),node('p','For '+(state.clients.find(c=>c.id===draft.client)?.name||'this account')+' · '+store+'. Past timing suggests checking these now or within the next 7 days; older habits are separate. Nothing changes in your cart until you accept.','fine'));
+    host.append(node('p','Based on purchases, not home inventory. Only recent, fairly regular restocks start checked. Review the other suggestions and starting quantities before accepting.','fine'));
+    if(!draft.rows.length)host.append(node('p','No suggestions to review for the next week, or those items are already in your cart. You can still add products below.','fine'));
     const status=node('p',undefined,'fine');status.setAttribute('role','status');
     const accept=node('button','Add selected to '+store+' cart','primary');
     const update=()=>{const count=draft.rows.filter(row=>row.checked).length;accept.textContent='Add '+count+' selected to '+store+' cart';accept.disabled=!count;};
-    for(const group of ['Daily','Every few days','Weekly','Every two weeks','Monthly','Occasionally']){
-      const items=draft.rows.filter(item=>cadence(item.intervalDays)===group);if(!items.length)continue;
-      host.append(node('h4',group));
+    for(const group of ShoppingGuidance.groups){
+      const items=draft.rows.filter(item=>ShoppingGuidance.group(item)===group.id);if(!items.length)continue;
+      const section=node(['older','match'].includes(group.id)?'details':'section',undefined,'usual-group');section.dataset.group=group.id;
+      section.append(node(section.tagName==='DETAILS'?'summary':'h4',group.title+' · '+items.length),node('p',group.description,'fine'));host.append(section);
       for(const item of items){
         const row=node('div',undefined,'usual-row'),label=node('label'),check=node('input');check.type='checkbox';check.checked=item.checked;
         const available=!item.needsMatch&&(draft.store==='HEB'||state.products.some(product=>product.id===item.id&&product.offerId));check.disabled=!available;if(!available)item.checked=false;
         check.onchange=()=>{item.checked=check.checked;update();};label.append(check,node('span',item.name));
-        const detail=node('small',(item.daysUntil>0?'Due in about '+item.daysUntil+' days':'Due now')+' · usually every '+item.intervalDays+' days · '+item.purchaseCount+' purchase days'+(!available?' · Match/connect this product in Settings first':item.unit!=='each'?' · Bought by weight; review package count':''),'fine');
-        const info=node('div');info.append(label,detail);if(item.matchKind==='substitute')info.append(node('small',item.matchNote||'Alternative product: review the type and quantity.','fine'));const quantity=node('input');quantity.type='number';quantity.min=1;quantity.max=100;quantity.step=1;quantity.value=item.amount;quantity.disabled=!available;quantity.setAttribute('aria-label','Draft quantity for '+item.name);quantity.oninput=()=>{item.amount=Number(quantity.value);};row.append(info,quantity);host.append(row);
+        const detail=node('small','Last bought '+HouseholdCalendar.elapsed(item.lastPurchasedDay??Date.parse(item.lastPurchasedAt.slice(0,10)))+' days ago · typical gap '+item.intervalDays+' days · '+ShoppingGuidance.reliabilityLabel(item)+(!available?' · Choose a product first':''),'fine');
+        const basis=node('details',undefined,'fine');basis.append(node('summary','Timing & quantity details'),node('p','Based on '+item.purchaseCount+' purchase days within the last year. '+ShoppingGuidance.quantityNote(item)));
+        const info=node('div');info.append(label,detail);if(item.unit!=='each')info.append(node('small','Item/package count, not pounds.','fine'));info.append(basis);if(item.matchKind==='substitute')info.append(node('small',item.matchNote||'Alternative product: review the type and quantity.','fine'));const quantity=node('input');quantity.type='number';quantity.min=1;quantity.max=100;quantity.step=1;quantity.value=item.amount;quantity.disabled=!available;quantity.setAttribute('aria-label','Draft quantity for '+item.name);quantity.oninput=()=>{item.amount=Number(quantity.value);};row.append(info,quantity);section.append(row);
       }
     }
     accept.onclick=async()=>{

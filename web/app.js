@@ -97,27 +97,27 @@ const expandedSuggestionReasons=new Set();
 function renderSuggestions(){
  const host=$('suggestions');host.replaceChildren();
  const all=(state.suggestions||[]).filter(item=>item.client===selectedAccount&&item.store===state.preferredStore&&!selectedLines().some(line=>line.id===item.id));
- const current=all.filter(item=>!item.needsMatch&&item.daysUntil>=-Math.max(30,item.intervalDays*2)).sort((a,b)=>Number(b.confidence==='established')-Number(a.confidence==='established')||Math.abs(a.daysUntil)-Math.abs(b.daysUntil));
+ const current=all.filter(item=>!item.needsMatch&&ShoppingGuidance.group(item)!=='older').sort((a,b)=>Number(b.confidence==='established')-Number(a.confidence==='established')||Math.abs(a.daysUntil)-Math.abs(b.daysUntil));
  const older=all.filter(item=>!current.includes(item)).sort((a,b)=>Date.parse(b.lastPurchasedAt)-Date.parse(a.lastPurchasedAt));const suggested=showAllSuggestions?[...current,...older]:current;
  if(!all.length){host.append(node('p','No routine items to check right now. You can browse saved products below.','fine'));return;}
- if(!suggested.length)host.append(node('p','No recent routine items look due. Older habits are available below if you want to review them.','fine'));
- const summary=node('p',(showAllSuggestions?suggested.length+' suggestions, including older habits and items needing a match':current.length+' recent routine items to check')+' · '+(state.preferredStore==='HEB'?'H-E-B':'Walmart'),'suggestion-summary');host.append(summary);
- for(const item of suggested.slice(0,showAllSuggestions?undefined:8)){
+ if(!suggested.length)host.append(node('p','No recent purchase patterns to check. Older habits are available below if you want to review them.','fine'));
+ const summary=node('p',(showAllSuggestions?suggested.length+' suggestions, including older habits and items needing a match':current.length+' recent items to check')+' · '+(state.preferredStore==='HEB'?'H-E-B':'Walmart'),'suggestion-summary');host.append(summary);
+ let previousGroup;for(const item of suggested.slice(0,showAllSuggestions?undefined:8).sort((a,b)=>ShoppingGuidance.groups.findIndex(g=>g.id===ShoppingGuidance.group(a))-ShoppingGuidance.groups.findIndex(g=>g.id===ShoppingGuidance.group(b)))){const group=ShoppingGuidance.groups.find(g=>g.id===ShoppingGuidance.group(item));if(previousGroup!==group.id){host.append(node('h3',group.title,'suggestion-group-heading'));previousGroup=group.id;}
   const row=node('div',undefined,'suggestion-row'),info=node('div',undefined,'suggestion-info');
   info.append(node('strong',item.name));if(item.matchKind==='substitute')info.append(node('small',item.matchNote||'Alternative product: review the type and quantity.','fine'));
   const days=HouseholdCalendar.elapsed(item.lastPurchasedDay??Date.parse(item.lastPurchasedAt.slice(0,10)));
   const timing=days===0?'Bought today':days===1?'Bought yesterday':'Bought '+days+' days ago';
-  info.append(node('span',timing+' · usually every '+item.intervalDays+' days','suggestion-meta'));
-  const label=item.daysUntil>0?'In ~'+item.daysUntil+' days':item.daysUntil < -Math.max(30,item.intervalDays*2)?'Older habit':'Near usual timing';
-  const badge=node('span',label,'suggestion-due');badge.dataset.timing=item.daysUntil>0?'soon':'due';info.append(badge);
-  const detail=node('details',undefined,'suggestion-reason');detail.append(node('summary','Why this item?'),node('p','Based on '+item.purchaseCount+' purchase days from '+(item.sources||[]).map(store=>store==='HEB'?'H-E-B':store).join(' and ')+'. '+(item.confidence==='established'?'A fairly regular pattern.':'Still learning your routine.')+' This estimates timing, not what you have at home.'));const reasonKey=selectedAccount+'|'+item.store+'|'+(item.householdItemId||item.id||item.name);detail.open=expandedSuggestionReasons.has(reasonKey);detail.ontoggle=()=>{if(detail.isConnected){if(detail.open)expandedSuggestionReasons.add(reasonKey);else expandedSuggestionReasons.delete(reasonKey);}};info.append(detail);
+  info.append(node('span',timing+' · typical gap '+item.intervalDays+' days','suggestion-meta'));
+  const label=ShoppingGuidance.timingLabel(item);
+  const badge=node('span',label,'suggestion-due');badge.dataset.timing=ShoppingGuidance.group(item)==='regular'?'soon':'uncertain';info.append(badge);
+  const detail=node('details',undefined,'suggestion-reason');detail.append(node('summary','Why this item?'),node('p','Based on '+item.purchaseCount+' purchase days within the last year from '+(item.sources||[]).map(store=>store==='HEB'?'H-E-B':store).join(' and ')+'. '+ShoppingGuidance.reliabilityLabel(item)+'. '+(item.gapCount?'Observed gaps range from '+item.minGap+' to '+item.maxGap+' days. ':'')+'This estimates timing, not what you have at home. '+ShoppingGuidance.quantityNote(item)));const reasonKey=selectedAccount+'|'+item.store+'|'+(item.householdItemId||item.id||item.name);detail.open=expandedSuggestionReasons.has(reasonKey);detail.ontoggle=()=>{if(detail.isConnected){if(detail.open)expandedSuggestionReasons.add(reasonKey);else expandedSuggestionReasons.delete(reasonKey);}};info.append(detail);
   const actions=node('div',undefined,'suggestion-actions');
   if(item.needsMatch){const match=node('button','Choose product','secondary');match.onclick=()=>{showView('setup');const section=$('settings-matches');section.querySelector('details').open=true;section.scrollIntoView({block:'start',behavior:'smooth'});};actions.append(match);}
   else if(item.store==='HEB'){
-   actions.append(node('span',item.unit==='each'?'Usual: '+item.quantity+' packages':'Bought by weight · add 1 item/package','suggestion-amount'));
+   actions.append(node('span',item.unit==='each'?'Start: '+ShoppingGuidance.startingAmount(item)+' items/packages':'Start: 1 item/package · sold by weight','suggestion-amount'));
    const add=node('button','+ Add','secondary');add.setAttribute('aria-label','Add '+item.name+' to H-E-B cart');add.onclick=()=>setQuantity(item.id,Math.max(hebLines().find(l=>l.id===item.id)?.quantity||0,item.unit==='each'?Math.min(100,item.quantity):1));actions.append(add);
   }else{
-   const quantity=node('input');quantity.type='number';quantity.min=1;quantity.max=100;quantity.value=item.quantity;quantity.setAttribute('aria-label','Suggested quantity for '+item.name);
+   const quantity=node('input');quantity.type='number';quantity.min=1;quantity.max=100;quantity.value=ShoppingGuidance.startingAmount(item);quantity.setAttribute('aria-label','Suggested quantity for '+item.name);
    const add=node('button','+ Add','secondary');add.disabled=!state.products.find(product=>product.id===item.id)?.offerId;add.setAttribute('aria-label','Add '+item.name+' to Walmart cart');add.onclick=()=>setQuantity(item.id,Number(quantity.value));actions.append(quantity,add);
    if(add.disabled)actions.append(node('small','Connect product on Walmart first','fine'));
   }

@@ -15,7 +15,7 @@ var HebCoupons=(()=>{
     const clipped=await read(worker.id,item.id,'clip');await chrome.tabs.reload(worker.id);await loaded(worker.id,item.id);const verified=await read(worker.id,item.id,'read');
     for(const coupon of clipped.coupons)if(coupon.status==='clipped'&&!verified.coupons.some(c=>c.id===coupon.id&&c.status==='clipped'))throw Error('Coupon '+coupon.id+' was not saved after reload');
     if(verified.coupons.some(c=>c.status!=='clipped'))throw Error('Some H-E-B coupon controls could not be verified');
-    const result={id:item.id,name:item.name,quantity:item.quantity,coupons:verified.coupons};results.push(result);cache[item.id]={at:Date.now(),quantity:item.quantity,result};await chrome.storage.local.set({[key]:cache});
+    const result={id:item.id,name:item.name,quantity:item.quantity,checkedAt:new Date().toISOString(),coupons:verified.coupons};results.push(result);cache[item.id]={at:Date.now(),quantity:item.quantity,result};await chrome.storage.local.set({[key]:cache});
    }catch(e){results.push({id:item.id,name:item.name,quantity:item.quantity,coupons:[],error:e.message});error=e.message;if(/sign in|sign into|human|account is still loading/i.test(e.message))break;}await report(true);}
   }catch(e){error=e.message;}finally{if(worker)await chrome.tabs.remove(worker.id).catch(()=>{});const final={running:false,processed:results.length,total:cart.lines.length,items:results,error};await chrome.storage.local.set({hebCouponPendingReport:final});await flush(post).catch(()=>{});}
  }

@@ -22,7 +22,9 @@ function suggestions(purchases,cartLines,now=Date.now(),horizonDays=3){
     const last=visits.at(-1);const due=last.time+interval*DAY;const daysUntil=Math.round((due-calendar.today(now))/DAY);
     if(daysUntil>horizonDays)continue;
     const deviation=median(gaps.map(gap=>Math.abs(gap-interval)))/interval;
-    result.push({client:group.client,id:group.id,name:last.name||'Walmart item '+group.id,quantity:Math.min(100000,median(visits.slice(-5).map(visit=>visit.quantity))),intervalDays:Math.round(interval),daysUntil,dueAt:new Date(due).toISOString(),lastPurchasedAt:new Date(last.time).toISOString(),lastPurchasedDay:last.time,purchaseCount:visits.length,confidence:gaps.length>=3&&deviation<=.25?'established':'learning'});
+    const regularShare=gaps.filter(gap=>Math.abs(gap-interval)<=Math.max(2,interval*.4)).length/gaps.length;
+    const regular=gaps.length>=3&&deviation<=.25&&regularShare>=.75;
+    result.push({client:group.client,id:group.id,name:last.name||'Walmart item '+group.id,quantity:Math.min(100000,median(visits.slice(-5).map(visit=>visit.quantity))),quantitySampleSize:Math.min(5,visits.length),intervalDays:Math.round(interval),daysUntil,dueAt:new Date(due).toISOString(),lastPurchasedAt:new Date(last.time).toISOString(),lastPurchasedDay:last.time,purchaseCount:visits.length,gapCount:gaps.length,minGap:Math.min(...gaps),maxGap:Math.max(...gaps),timingReliability:regular?'regular':gaps.length<3?'early':'variable',confidence:regular?'established':'learning'});
   }
   return result.sort((a,b)=>a.daysUntil-b.daysUntil||a.id.localeCompare(b.id));
 }
