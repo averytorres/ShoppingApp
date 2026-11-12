@@ -107,6 +107,12 @@ bread
 butter
 ```
 
+Known requests are prefilled from saved choices first, then purchase history and
+reviewed cross-store matches. A matching saved product can be suggested when no
+purchase evidence exists yet; its reason says so. Unknown or ambiguous requests
+can still need a product choice. Suggestions are editable and do not send items
+automatically.
+
 Review the chosen store product for every request, including size, quantity and
 any extras. Save what a term means if you want that product to be the usual choice
 for this store. Under **Settings → Usual items & extras**, define associations

@@ -25,7 +25,7 @@
   const host=$('current-price-comparisons');if(!host)return;host.replaceChildren();let found=0;
   for(const item of CurrentPriceComparisons.compare(state,selectedAccount)){
    const row=node('div',undefined,'stat-driver'),info=node('div');info.append(node('strong',item.name));
-   for(const p of [item.heb,item.walmart]){const link=node('a',(p.store==='HEB'?'H-E-B':'Walmart')+' $'+p.price.toFixed(2)+' · '+p.name);link.href=p.url;link.target='_blank';link.rel='noopener noreferrer';const line=node('p');line.append(link);info.append(line,node('p','Checked '+new Date(p.at).toLocaleString()+(p.promotion?' · Offer: '+p.promotion:''),'fine'));}
+   for(const p of [item.heb,item.walmart]){const link=node('a',(p.store==='HEB'?'H-E-B':'Walmart')+' $'+p.price.toFixed(2)+' · '+p.name);link.href=p.url;link.target='_blank';link.rel='noopener noreferrer';const line=node('p',undefined,'product-line');line.append(productPhoto(p.store,p.id,p.name,true),link);info.append(line,node('p','Checked '+new Date(p.at).toLocaleString()+(p.promotion?' · Offer: '+p.promotion:''),'fine'));}
    info.append(node('p',item.percent>=1?'At the checked prices, '+(item.cheaper.store==='HEB'?'H-E-B':'Walmart')+' was '+Math.round(item.percent)+'% less for the same matched amount.':'Similar prices for the same matched amount.','fine'));info.append(node('p','Comparison uses saved package-size equivalents. Potential item savings exclude delivery charges, tax and checkout coupons; confirm the final store price.','fine'));row.append(info);host.append(row);found++;
   }
   if(!found)host.append(node('p','No fresh comparable prices yet. Check matched prices at both stores above. Your PC browser collects them without changing either cart.','fine'));

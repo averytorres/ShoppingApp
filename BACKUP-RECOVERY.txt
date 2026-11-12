@@ -37,7 +37,9 @@ Copy the printed full directory path into this variable, then verify:
   $groceryBackup = '<full-backup-directory-printed-above>'
   & $groceryNode (Join-Path $groceryApp 'backup.js') verify $groceryBackup
 
-Verification must succeed with "ok": true. Existing backups are not deleted.
+Verification must succeed with "ok": true. Backups containing custom branding
+use format 2 and need an updated backup.js with format-2 support; format 1 backups
+remain supported. Branding files are copied and checksum-verified on restore. Existing backups are not deleted.
 Installer updates verify a backup before updating an existing household.
 That is not a recurring scheduled backup; manual snapshots remain available.
 
@@ -87,7 +89,8 @@ changes. A backup is a snapshot, not current retailer cart state.
 COVERAGE AND LIMITS
 
 Included: every application database table and all cached photos referenced
-by that database snapshot. This includes receipts, paid prices, preferences,
+by that database snapshot, plus local PNG branding images (including the mascot).
+This includes receipts, paid prices, preferences,
 product matches, packs, reusable lists, snoozes, saved products and sync records.
 
 Not included: application source/dependencies, browser profiles or retailer

@@ -1,5 +1,6 @@
 (() => {
-  let preview;let previewVersion=0;
+  let preview;let previewVersion=0,commitBusy=false;
+  function syncCommitControls(){for(const id of ['import-preview','import-account','import-store','import-file','import-commit'])$(id).disabled=commitBusy;for(const input of $('import-review').querySelectorAll('input'))input.disabled=commitBusy;}
   let importStoreApplied=false;
   const message=text=>{$('import-status').textContent=text;};
   window.renderImportAccounts=()=>{
@@ -26,6 +27,7 @@
   function invalidate(){previewVersion++;preview=null;$('import-commit').hidden=true;$('import-review').replaceChildren();message('Preview this file for the selected account and store.');}
   $('import-account').onchange=invalidate;$('import-store').onchange=()=>{importStoreApplied=true;invalidate();};$('import-file').onchange=invalidate;
   $('import-preview').onclick=async()=>{
+    if(commitBusy)return;
     const version=++previewVersion;const chosenFile=$('import-file').files[0];$('import-preview').disabled=true;preview=null;$('import-commit').hidden=true;$('import-review').replaceChildren();
     try{
       const file=chosenFile;if(!file)throw Error('Choose a history file first.');if(file.size>1500000)throw Error('Use a file under 1.5 MB.');
@@ -36,18 +38,18 @@
     }catch(error){message(error.message);}finally{$('import-preview').disabled=false;}
   };
   $('import-commit').onclick=async()=>{
-    $('import-commit').disabled=true;
+    if(commitBusy)return;commitBusy=true;syncCommitControls();
     try{
       if(!preview||preview.client!==$('import-account').value||preview.store!==$('import-store').value)throw Error('Preview the current account and store again.');
       const orders=[...$('import-review').querySelectorAll('input:checked')].map(input=>input.value);if(!orders.length)throw Error('Select at least one eligible order.');
       const result=await api('/api/history-import/commit',{id:preview.id,orders});
       window.SyncFeedback?.toast('Purchase history updated: '+result.imported+' orders imported.');message(result.imported+' purchases imported; '+result.duplicates+' duplicates skipped. No cart changes were made.');preview=null;$('import-commit').hidden=true;await refresh();
-    }catch(error){message(error.message);}finally{$('import-commit').disabled=false;}
+    }catch(error){message(error.message);}finally{commitBusy=false;syncCommitControls();}
   };
   window.renderImportAccounts();
   const collectedId=new URL(location.href).searchParams.get('import');
-  if(collectedId)(async()=>{try{
-    const result=await api('/api/history-import/preview?id='+encodeURIComponent(collectedId));const available=await api('/api/state');
+  if(collectedId)(async()=>{const version=previewVersion;try{
+    const result=await api('/api/history-import/preview?id='+encodeURIComponent(collectedId));const available=await api('/api/state');if(version!==previewVersion||commitBusy)return;
     $('import-account').replaceChildren();for(const client of available.clients){const option=node('option',client.name);option.value=client.id;$('import-account').append(option);}
     importStoreApplied=true;$('import-account').value=result.client;$('import-store').value=result.store;showView('history');$('import-preview').closest('details').open=true;display(result);
     history.replaceState(null,'',location.pathname+'#history');
