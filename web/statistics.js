@@ -2,6 +2,8 @@
   const calendar=typeof module!=='undefined'&&module.exports?require('./calendar'):root.HouseholdCalendar;
   const DAY=86400000,grams={lb:453.59237,oz:28.349523125,g:1,kg:1000};
   const median=values=>{const v=[...values].sort((a,b)=>a-b),m=Math.floor(v.length/2);return v.length%2?v[m]:(v[m-1]+v[m])/2;};
+  const cadenceBands=[{name:'Every few days',label:'Every few days',max:4},{name:'Weekly',label:'About weekly',max:10},{name:'Every two weeks',label:'About every 2 weeks',max:20},{name:'Monthly',label:'About monthly',max:45},{name:'Every few months',label:'Every few months',max:120},{name:'Less often',label:'Less often',max:Infinity}];
+  const percentile=(values,fraction)=>{const v=[...values].sort((a,b)=>a-b),pos=(v.length-1)*fraction,index=Math.floor(pos);return v[index]+(v[Math.min(index+1,v.length-1)]-v[index])*(pos-index);};
   const week=time=>{const d=new Date(time);d.setUTCHours(0,0,0,0);d.setUTCDate(d.getUTCDate()-(d.getUTCDay()+6)%7);return d.getTime();};
   function analyze(state,{client,store='all',days=90,now=Date.now()}={}){
     const end=calendar.today(now),start=days?end-(days-1)*DAY:0;
@@ -37,15 +39,18 @@
       const interval=gaps.length>=2?median(gaps):null;const variation=interval?median(gaps.map(g=>Math.abs(g-interval)))/interval:null;
       const regularShare=interval?gaps.filter(g=>Math.abs(g-interval)<=Math.max(2,interval*.4)).length/gaps.length:0;
       const consistent=gaps.length>=3&&variation<=.4&&regularShare>=.75;
-      const cadence=dates.length===1?'Bought once':dates.length===2?'Bought twice':interval===null||variation>.6||regularShare<.7?'Other patterns':interval>=5&&interval<=10?'Weekly':interval>=11&&interval<=20?'Every two weeks':interval>=21&&interval<=45?'Monthly':'Other patterns';
-      return {...row,days:dates,stores:[...(lifetimeStores.get(row.id)||row.stores)],first:dates[0]*DAY,gapCount:gaps.length,minGap:gaps.length?Math.min(...gaps):null,maxGap:gaps.length?Math.max(...gaps):null,consistent,regularTiming:interval!==null&&variation<=.6&&regularShare>=.7,visits:dates.length,interval,cadence,confidence:consistent?'Fairly regular':gaps.length<3?'Early estimate':'Variable timing',last:dates.at(-1)*DAY,repeatWeeks:[...row.weeks.values()].filter(v=>v.size>1).length};
+      // Frequency describes the typical gap. Reliability is a separate judgment:
+      // a mix of weekly and fortnightly purchases still has useful frequency evidence.
+      const band=interval===null?null:cadenceBands.find(b=>Math.round(interval)<=b.max);
+      const cadence=dates.length===1?'Bought once':dates.length===2?'Bought twice':band.name;
+      return {...row,days:dates,stores:[...(lifetimeStores.get(row.id)||row.stores)],first:dates[0]*DAY,gaps,gapCount:gaps.length,minGap:gaps.length?Math.min(...gaps):null,maxGap:gaps.length?Math.max(...gaps):null,typicalMinGap:gaps.length?Math.floor(percentile(gaps,.25)):null,typicalMaxGap:gaps.length?Math.ceil(percentile(gaps,.75)):null,consistent,regularTiming:interval!==null&&variation<=.6&&regularShare>=.7,visits:dates.length,interval,cadence,cadenceLabel:band?.label||cadence,confidence:consistent?'Fairly regular':gaps.length<3?'Early estimate':'Variable timing',last:dates.at(-1)*DAY,repeatWeeks:[...row.weeks.values()].filter(v=>v.size>1).length};
     }).sort((a,b)=>b.visits-a.visits||a.name.localeCompare(b.name));
-    const cadence=['Weekly','Every two weeks','Monthly','Other patterns'].map(name=>({name,count:patterns.filter(p=>p.cadence===name).length}));
+    const cadence=cadenceBands.map(({name,label})=>{const members=patterns.filter(p=>p.cadence===name);return {name,label,count:members.length,regular:members.filter(p=>p.consistent).length,early:members.filter(p=>p.confidence==='Early estimate').length,variable:members.filter(p=>p.confidence==='Variable timing').length};});
     const savings=[];
     if(pricedRows<totalRows)savings.push({title:'Some item prices are still missing',text:(totalRows-pricedRows)+' purchased items are missing prices. Item-price comparisons will improve as those are collected. Spending totals come from full order receipts.',kind:'data'});
     const repeat=patterns.filter(p=>p.repeatWeeks>=2).slice(0,3);
     if(repeat.length)savings.push({title:'Check these before the next top-up shop',text:repeat.map(p=>p.name+' ('+p.repeatWeeks+' weeks with repeat buys)').join('; ')+'. Planning these together may avoid an extra trip; no delivery-fee saving is assumed.',kind:'planning'});
-    const regular=patterns.filter(p=>p.cadence==='Weekly').slice(0,3);
+    const regular=patterns.filter(p=>p.cadence==='Weekly'&&p.consistent).slice(0,3);
     if(regular.length)savings.push({title:'Compare unit prices on your weekly staples',text:regular.map(p=>p.name).join('; ')+'. A larger pack is better value only if its price per ounce, pound or count is lower and you can use it.',kind:'value'});
     for(const item of patterns){const recent=item.prices.filter(p=>now-p.time<=180*DAY),heb=recent.filter(p=>p.store==='HEB'),walmart=recent.filter(p=>p.store==='Walmart');if(!heb.length||!walmart.length)continue;const a=median(heb.map(p=>p.price)),b=median(walmart.map(p=>p.price));if(Math.min(a,b)>0&&Math.abs(a-b)/Math.max(a,b)>=.05){const factor=item.unit==='g'?453.59237:1;savings.push({store:a<b?'HEB':'Walmart',query:item.name,title:'Compare prices you paid before',text:item.name+': H-E-B $'+(a*factor).toFixed(2)+' versus Walmart $'+(b*factor).toFixed(2)+' '+(item.unit==='g'?'per lb':'for the same matched amount')+'. Typical prices you paid in the last 180 days. Compare the current products before choosing.',kind:'comparison'});}}
     const weekCount=weeks.size||1;

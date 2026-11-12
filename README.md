@@ -49,6 +49,8 @@ See your store cart, review items that may be due, and browse saved products.
 
 Weekly spending averages use full receipt totals, including recorded fees, taxes,
 and tips. Purchase patterns help distinguish regular restocks from occasional buys.
+Restock groups show the typical time between purchases separately from how
+consistent that timing is, with the actual purchase gaps available for review.
 
 ![Spending and habits dashboard showing weekly averages, order activity, and purchase patterns](docs/assets/spending-desktop.png)
 
