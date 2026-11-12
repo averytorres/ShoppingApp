@@ -3,11 +3,16 @@
   <img src="docs/assets/banner.gif" alt="Home Grocery — a little less to remember. Your routines, your shopping list, your store cart." width="1200">
 </picture>
 
-**Windows setup:** run `dist/Install Home Grocery.exe` on the hosting PC, choose
-your household name and main store, then follow the browser connection guide.
-Node is bundled. Phones and other laptops use the website. Chrome still requires
-manual helper approval and store sign-in. See [installer instructions](installer/README.md)
-for building, updates, uninstall, system requirements and current limitations.
+<p align="center">
+  <a href="https://github.com/averytorres/ShoppingApp/releases/latest/download/Install-Home-Grocery.exe"><img src="docs/assets/download-windows.svg" alt="Download Home Grocery for Windows 10/11 x64 — Node included" width="300" height="66"></a><br>
+  <a href="https://github.com/averytorres/ShoppingApp/releases/latest">Release notes</a> ·
+  <a href="https://github.com/averytorres/ShoppingApp/releases/latest/download/SHA256SUMS.txt">SHA-256 checksum</a>
+</p>
+
+Install once on the PC that stays on, then use the website from your phone or
+laptop. The installer includes Node and dependencies. Chrome helper approval and
+store sign-in are the remaining manual steps. **This repository is private:**
+release downloads require a GitHub account with access to it.
 
 <p align="center">
   A household grocery planner that turns familiar routines into a shopping list—<br>
@@ -15,7 +20,7 @@ for building, updates, uninstall, system requirements and current limitations.
 </p>
 
 <p align="center">
-  <img alt="Node.js 22.13 or newer" src="https://img.shields.io/badge/Node.js-22.13%2B-315e48?style=flat-square">
+  <img alt="Windows 10/11 x64 installer" src="https://img.shields.io/badge/Install-Windows_10%2F11_x64-315e48?style=flat-square">
   <img alt="Local SQLite database" src="https://img.shields.io/badge/Data-local_SQLite-6687a1?style=flat-square">
   <img alt="Desktop Chrome helper" src="https://img.shields.io/badge/Helper-desktop_Chrome-c18d43?style=flat-square">
   <img alt="Phone-friendly website" src="https://img.shields.io/badge/Website-phone_friendly-315e48?style=flat-square">
@@ -34,6 +39,7 @@ for building, updates, uninstall, system requirements and current limitations.
 
 See your store cart, scan suggestions by grocery type, and browse saved products.
 Timing reliability stays visible on each row; older habits remain collapsed.
+Suggestions and saved products have pages plus a Show all option.
 
 ![Desktop shopping page with a store cart, coupon status, and routine-based suggestions](docs/assets/shop-desktop.png)
 
@@ -118,19 +124,37 @@ The hosting PC runs the server. The Chrome extension uses that PC’s store
 sessions to do the retailer work. Any supported browser on the home network can
 use the website, including a phone—no mobile extension is required.
 
-Windows Task Scheduler starts the configured household server independently of
-Codex. The server owns the Monday schedule; Codex does not need to stay open.
+Installer setups start the server quietly at Windows sign-in using a Startup
+shortcut. Existing source installations can keep their Windows scheduled task.
+The server owns the Monday schedule; no coding app needs to stay open.
 The PC must be awake, and store sign-ins or human checks can require attention.
 
 ## Getting started
 
-This is a **Windows-first household application**, currently tailored to the
-hosting PC and home-network configuration. The scheduled task, Chrome-profile
-links, and friendly network name are machine setup, not something Git installs.
+### 1. Install on the hosting PC
 
-### 1. Start the website
+1. [Download Install Home Grocery](https://github.com/averytorres/ShoppingApp/releases/latest/download/Install-Home-Grocery.exe) and run it on **Windows 10/11 x64**.
+2. Enter a household name, choose H-E-B or Walmart, and select whether to start
+   at Windows sign-in and allow phones on your private network.
+3. Continue with the connection guide that opens in your browser.
 
-Requires **Node.js 22.13+** and **desktop Google Chrome 120+** for the helper.
+No separate Node, npm, Git, or terminal setup is needed. The installer works
+offline; store connections need internet access. Optional home-network access
+asks for Windows administrator approval. Keep this PC awake and signed in.
+The installer is currently **unsigned**, so Windows may show an unknown-publisher
+or SmartScreen warning. The helper is not yet in the Chrome Web Store.
+
+Open Home Grocery from the Windows Start menu. Phones on the same private network
+can use **http://groceries.local**, or the numbered address in the connection guide
+if the friendly name is unavailable. Phones do not need the extension.
+
+**Already running from a source checkout?** Keep using it. Setup refuses to
+replace an existing server on port 4317; it does not migrate your household data.
+
+<details>
+<summary><strong>Developer setup instead of the installer</strong></summary>
+
+Requires Node.js 22.13+ and desktop Google Chrome 120+.
 
 ```powershell
 git clone https://github.com/averytorres/ShoppingApp.git
@@ -139,18 +163,19 @@ npm ci
 npm start
 ```
 
-Open **http://localhost:4317** on the hosting PC. Other home devices use
-**http://groceries.local** on the configured network, or
-`http://<hosting-PC-IP>:4317` when local-name resolution is unavailable.
+Open http://localhost:4317. For an existing scheduled-task installation,
+`start-groceries.ps1` remains its background launcher. Building a new installer
+is documented in [installer/README.md](installer/README.md).
 
-On the existing hosting PC, use its **Home Grocery Server** scheduled task for
-normal operation. `start-groceries.ps1` is the task’s background launcher.
+</details>
 
 ### 2. Load the Chrome helper
 
 1. Open `chrome://extensions` in the Chrome profile used for store shopping.
 2. Turn on **Developer mode**, choose **Load unpacked**, and select
-   [`walmart-extension/`](walmart-extension/).
+   the folder shown by the installer’s connection guide. You can also open it
+   using **Start → Home Grocery → Chrome extension folder**. For a source checkout,
+   choose [`walmart-extension/`](walmart-extension/).
 3. Open **Home Grocery Helper**, set the household address to
    `http://127.0.0.1:4317` on the hosting PC, and connect the household.
 4. Sign into the intended H-E-B and Walmart accounts in that profile. Complete
@@ -172,6 +197,17 @@ credentials remain in Chrome’s store sessions.
 - Add household-specific extras and custom packs as you learn what works.
 - Review suggested items and quantities before sending them to the store cart.
 
+## Updates and uninstall
+
+To update, download and run the latest installer again. It preserves household
+data and creates a verified database/photo backup before updating an existing
+installation. Reload the Chrome helper after an update. Updates are manual.
+
+Uninstall through **Windows Settings → Apps → Home Grocery** or its Start-menu
+shortcut. Your household data and backups are kept. Remove the helper separately
+in Chrome. Installer data is stored in `%LOCALAPPDATA%\HomeGrocery\data`;
+program files are in `%LOCALAPPDATA%\Programs\HomeGrocery`.
+
 ## Your data and rollback
 
 | Saved in Git | Saved locally, excluded from Git |
@@ -185,7 +221,14 @@ credentials remain in Chrome’s store sessions.
 commit restores code; it does not restore receipts, undo a schema change, or
 change the retailer’s cart.
 
-Create a complete database-and-photo backup while the server is running:
+For an installer setup, create a complete database/photo backup with the bundled
+runtime (no separate Node needed):
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\HomeGrocery\runtime\node.exe" "$env:LOCALAPPDATA\Programs\HomeGrocery\app\backup.js" create "$env:LOCALAPPDATA\HomeGrocery\data"
+```
+
+For a source checkout, run these from the project folder:
 
 ```powershell
 node .\backup.js create
@@ -200,6 +243,7 @@ for commit snapshots and reverting changes.
 
 ```text
 ShoppingApp/
+├── installer/              Windows installer source and build instructions
 ├── web/                    Household website and spending dashboard
 ├── walmart-extension/      Chrome helper for H-E-B and Walmart
 ├── server.js               Local API, live updates, and job coordination
