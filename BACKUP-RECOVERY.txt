@@ -1,68 +1,101 @@
-DATABASE AND PHOTO BACKUPS
+HOME GROCERY — DATABASE AND PHOTO BACKUPS
 
-Run these commands from:
-<path-to-your-checkout>
+For everyday use: docs/USER-GUIDE.md
+For connection problems: docs/TROUBLESHOOTING.md
+For development: CONTRIBUTING.md
 
-Create a complete data backup while the household server is running:
-  node .\backup.js create
+1. CHOOSE YOUR INSTALLATION
 
-The command prints the new backup directory. It contains groceries.sqlite,
-product-images, and manifest.json. The manifest records SHA-256 checksums,
-database schema/table fingerprints, and every referenced cached photo.
-A backup is usable only when verification succeeds and prints "ok": true.
-Older database-only snapshots are preserved; this tool never deletes them.
+Use a new PowerShell terminal. Set these variables for ONE setup below.
+Keep the current live household data folder intact throughout verification.
 
-Verified backup created November 12, 2026:
-  .data\backups\household-2026-11-12T14-33-55-056Z-418845
+Installer setup:
+  $groceryProgram = Join-Path $env:LOCALAPPDATA 'Programs\HomeGrocery'
+  $groceryNode = Join-Path $groceryProgram 'runtime\node.exe'
+  $groceryApp = Join-Path $groceryProgram 'app'
+  $groceryData = Join-Path $env:LOCALAPPDATA 'HomeGrocery\data'
 
-Verify it again:
-  node .\backup.js verify ".data\backups\household-2026-11-12T14-33-55-056Z-418845"
+Source checkout (run from its project root):
+  $groceryNode = (Get-Command node.exe).Source
+  $groceryApp = $PWD.Path
+  $groceryData = Join-Path $groceryApp '.data'
 
-Restore to a NEW directory (existing data is never overwritten):
-  node .\backup.js restore ".data\backups\household-2026-11-12T14-33-55-056Z-418845" ".data-recovered"
+If your launcher uses a custom data folder, use that actual folder instead.
+Code and household data are separate. Git rollback does not recover receipts.
 
-Preview the recovered copy safely in a separate PowerShell terminal:
-  $env:GROCERY_DATA_DIR = Join-Path $PWD '.data-recovered'
+2. CREATE AND VERIFY A BACKUP
+
+An online snapshot can be created while the server is running:
+  & $groceryNode (Join-Path $groceryApp 'backup.js') create $groceryData
+
+The command prints a new backup directory under the data folder's backups
+subfolder. It contains groceries.sqlite, product-images and manifest.json.
+The manifest records SHA-256 checksums, database schema/table fingerprints
+and all referenced cached photos. Keep the whole backup directory together.
+
+Copy the printed full directory path into this variable, then verify:
+  $groceryBackup = '<full-backup-directory-printed-above>'
+  & $groceryNode (Join-Path $groceryApp 'backup.js') verify $groceryBackup
+
+Verification must succeed with "ok": true. Existing backups are not deleted.
+Installer updates verify a backup before updating an existing household.
+That is not a recurring scheduled backup; manual snapshots remain available.
+
+3. RESTORE TO A SEPARATE PREVIEW
+
+The restore target must NOT already exist. Never overwrite a live data folder:
+  $groceryRecovery = Join-Path (Split-Path $groceryData -Parent) '.data-recovered'
+  & $groceryNode (Join-Path $groceryApp 'backup.js') restore $groceryBackup $groceryRecovery
+
+Choose a different new directory if that target already exists. Restore copies
+and verifies the database/photos, leaving the original and backup unchanged.
+It adds RECOVERY-READONLY so that a preview cannot change carts or history.
+
+In the same temporary PowerShell terminal:
+  $env:GROCERY_DATA_DIR = $groceryRecovery
   $env:HOST = '127.0.0.1'
   $env:PORT = '4318'
   $env:GROCERY_ALIAS = '0'
-  node .\server.js
+  & $groceryNode (Join-Path $groceryApp 'server.js')
 
-Open http://127.0.0.1:4318. Restored directories contain RECOVERY-READONLY,
-which automatically disables writes, browser launching and automatic sync.
-Use History and Spending & habits to check purchases, and Shop to check photos.
-Stop the preview with Ctrl+C when finished. Close that temporary terminal so
-its environment settings do not affect a later normal server launch.
+Open http://127.0.0.1:4318. Check History, Spending & habits, saved preferences
+and product photos. The recovery preview disables writes, browser launching
+and automatic sync. Stop with Ctrl+C and close this temporary terminal after
+review so its environment overrides cannot affect a later normal launch.
 
-Actual recovery / cutover:
-Do not replace the healthy live database as a test. Keep the original data
-folder as a rollback copy. Stop the grocery service before a real cutover.
-After reviewing a recovered copy, explicit activation is available:
-  node .\backup.js activate ".data-recovered"
-Activation holds old queued/running cart and sync jobs as "needs attention"
-so they cannot replay automatically, resets connection readiness, and removes
-the read-only marker. It does not start a server or change the live data folder.
-The launcher must then be pointed at the recovered directory for a real cutover.
-After restarting, reconnect the helper if necessary and refresh the live store
-carts before sending any cart changes. A backup is a snapshot, not current
-retailer cart state.
+4. REAL RECOVERY / CUTOVER
 
-What is covered:
-- Every database table, including receipts, prices, product matches, packs,
-  preferences, saved products, and sync records.
-- All cached photo files referenced by that database snapshot.
+This is a deliberate maintenance action, not part of testing a backup.
+Keep the original household folder for rollback. Stop the configured server
+before switching data folders. Installer users can use Start > Home Grocery >
+Stop Home Grocery; source users stop their configured server launcher/task.
 
-What is not covered:
-- Application source/dependencies or Chrome profiles/store sign-in sessions.
-  Preserve the application project separately; sign into stores again if needed.
-- Automatic scheduled backups or an off-PC copy. This backup is currently a
-  manual local snapshot. A copy on the same disk does not protect against disk
-  failure, theft or loss of the PC. Keep the entire backup directory together
-  when copying it to independent storage, then run verify against that copy.
+After reviewing the recovered copy, explicit activation is available:
+  & $groceryNode (Join-Path $groceryApp 'backup.js') activate $groceryRecovery
 
-Verification performed:
-All 31 database table fingerprints, 121 receipt records and 154 cached photos
-matched after restore. The restored site loaded the receipts and actual photos.
-Read-only enforcement, damaged-file rejection, overwrite protection, queued-job
-replay prevention and explicit safe activation were tested in isolated copies.
-The healthy live database and store carts were not replaced or changed.
+Activation holds old queued/running cart and sync jobs as needs-attention,
+resets browser readiness, and removes RECOVERY-READONLY. Old jobs must not
+replay into a current retailer cart. Activation does not change the live data
+path, start a server, or restore a Chrome/store sign-in session.
+
+Have the maintainer configure the actual installed/source launcher to use the
+recovered directory, then restart it. Do not merely start a second server on
+the normal port or replace a live SQLite file while its server is running.
+Reconnect the helper if needed and refresh real store carts before sending
+changes. A backup is a snapshot, not current retailer cart state.
+
+COVERAGE AND LIMITS
+
+Included: every application database table and all cached photos referenced
+by that database snapshot. This includes receipts, paid prices, preferences,
+product matches, packs, reusable lists, snoozes, saved products and sync records.
+
+Not included: application source/dependencies, browser profiles or retailer
+sign-in sessions. Keep the appropriate installer/source version available and
+sign into stores again if needed. These commands operate on local snapshots;
+they do not configure another backup service or recurring backup schedule.
+
+The verification workflow checks database integrity, schema/table contents and
+photo checksums. Restore refuses an existing target, damaged backups fail
+verification, and recovery previews are read-only. Never assume a backup is
+usable solely because the directory exists: run verify before relying on it.

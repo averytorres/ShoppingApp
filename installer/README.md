@@ -1,4 +1,7 @@
-# Windows installer
+# Windows installer developer guide
+
+For installation and everyday shopping, use the [user guide](../docs/USER-GUIDE.md).
+For source development and the release checklist, see [Contributing](../CONTRIBUTING.md).
 
 Build on Windows x64 using a supported OpenJS-signed Node runtime and npm:
 
