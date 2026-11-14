@@ -115,3 +115,5 @@ main .pack-library-row[aria-pressed=true]{background:#dbe8d4;border-color:#78978
 #plan-review details.plan-row:not([open])>summary{padding-right:145px}
 
 #plan-review .review-package-warning{display:block;color:#a52d2d;font-size:12px;font-weight:650;line-height:1.45;margin:8px 0 0 24px}#plan-review .plan-row[open]>summary .review-package-warning{display:none}
+
+.coupon-savings-amount{color:#26703c;font-weight:650}
