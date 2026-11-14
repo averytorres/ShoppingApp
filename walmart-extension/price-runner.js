@@ -9,7 +9,7 @@ var StorePriceRunner=(()=>{
    if(task.kind==='photos'){if(observation?.photos)checked++;else failures.push(item.name);}else if(result&&!result.error){await Household.taskRequest('/api/bridge/store-price',{taskId:task.id,price:result});checked++;}else failures.push(item.name);
    await Household.taskRequest('/api/bridge/store-tasks/result',{id:task.id,complete:false,result:{checked,total:task.payload.items.length}});
   }
-  if(task.kind==='photos')return {checked,total:task.payload.items.length,unavailable:failures.length,failures};
+  if(task.kind==='photos')return {checked,total:task.payload.items.length,unavailable:failures.length,failures,...(failures.length?{error:failures.length+' photos could not be collected. Existing photos were preserved.'}:{})};
   return {checked,total:task.payload.items.length,...(failures.length?{error:failures.length+(task.kind==='photos'?' photos could not be collected. Existing photos were preserved.':' prices could not be confirmed. Previous prices were preserved.'),failures}:{})};
  }
  return {task};

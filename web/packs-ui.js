@@ -64,7 +64,8 @@
       const pack=current();if(!pack)throw Error('Choose a pack first.');if(pack.store!==state.preferredStore)throw Error('Select '+pack.store+' as your shopping store first.');
       const selectedItems=pack.items.filter(item=>choice(item.id).checked);if(!selectedItems.length)throw Error('Select at least one product.');
       for(const item of selectedItems){const q=choice(item.id).quantity;if(!Number.isInteger(q)||q<1||q>100)throw Error('Use package quantities from 1 to 100.');if(pack.store!=='HEB'&&!state.products.find(product=>product.id===item.id)?.offerId)throw Error('Capture '+item.name+' on Walmart before adding it.');}
-      const latest=await api('/api/state');if(target!==selectedAccount||store!==state.preferredStore)throw Error('The account or store changed. Review the pack again.');
+      const latest=await api('/api/state');if(target!==selectedAccount||store!==state.preferredStore||latest.preferredStore!==store)throw Error('The account or store changed. Review the pack again.');
+      if(selectedItems.some(item=>(latest.currentPrices||[]).some(p=>p.client===target&&p.store===store&&p.id===item.id&&ShoppingAssist.availabilityFresh(p)&&p.available===false)))throw Error('A selected pack product is now unavailable. Choose an alternative or uncheck it before sending.');
       const items=selectedItems.filter(item=>(selectedLines(latest,target).find(line=>line.id===item.id)?.quantity||0)<choice(item.id).quantity).map(item=>({id:item.id,quantity:choice(item.id).quantity}));
       if(items.length)await api(pack.store==='HEB'?'/api/heb/list':'/api/repeat',{target,items});await refresh();message(items.length?'Selected pack items sent to the selected store cart. Existing quantities were preserved.':'Those quantities are already in the cart; nothing sent.');
     }catch(error){message(error.message);}finally{busy(false);}

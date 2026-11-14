@@ -14,8 +14,15 @@ while ($true) {
         throw 'Port 4317 is occupied by another application.'
     } catch {
         try {
-            $listener = Get-NetTCPConnection -LocalPort 4317 -State Listen -ErrorAction SilentlyContinue
-            if ($listener) { Start-Sleep -Seconds 10; continue }
+            # CIM network queries can hang and prevent recovery after a crash.
+            # A bounded loopback connection still protects unrelated listeners.
+            $portOpen = $false
+            $probe = [System.Net.Sockets.TcpClient]::new()
+            try {
+                $connection = $probe.ConnectAsync('127.0.0.1', 4317)
+                if ($connection.Wait(1000)) { $portOpen = $probe.Connected }
+            } catch { } finally { $probe.Dispose() }
+            if ($portOpen) { Start-Sleep -Seconds 10; continue }
             $stdout = Join-Path $logDirectory 'server-output.log'
             $stderr = Join-Path $logDirectory 'server-error.log'
             foreach ($file in @($stdout, $stderr)) {

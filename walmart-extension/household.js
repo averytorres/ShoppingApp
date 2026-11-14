@@ -58,7 +58,7 @@ var Household = (() => {
       const payload={id:job.id,clientId:householdClientId,...result};
       await chrome.storage.local.set({householdPendingResult:payload});
       await request(base,'/api/bridge/result',payload);await chrome.storage.local.remove('householdPendingResult');
-      const attention=!!result.error||(result.report||[]).some(item=>!['added','already-present','updated','removed'].includes(item.status))||(result.report||[]).length!==(job.items||[]).length;
+      const report=result.report||[],expected=job.items||[],ids=new Set(report.map(item=>String(item.id)));const confirmed=report.length===expected.length&&ids.size===expected.length&&expected.every(item=>{const row=report.find(r=>String(r.id)===String(item.id));return row&&(item.quantity===0?['removed','already-present']:['added','already-present','updated']).includes(row.status);});const attention=!!result.error||!confirmed;
       await announce('Walmart',attention?'Cart sync needs attention. Check Home Grocery for details.':'Walmart cart sync complete.',attention);
       const latest=await chrome.storage.local.get(['savedProducts','shoppingHistory']);
       await request(base,'/api/bridge/sync',{clientId:householdClientId,accountName:householdAccountName,products:latest.savedProducts||[],history:latest.shoppingHistory||[],syncVersion:3,ready:CartRequests.ready()});

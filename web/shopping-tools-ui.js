@@ -33,7 +33,7 @@
  }
  function alternatives(host,item,force=false,onChoose){
   if(!item?.id||host.querySelector('.replacement-panel'))return;const price=(state.currentPrices||[]).find(p=>p.client===selectedAccount&&p.store===state.preferredStore&&p.id===item.id);
-  const failed=(state.preferredStore==='HEB'?state.hebJobs:state.jobs)||[];const unavailable=price?.available===false||failed.some(j=>(j.client===selectedAccount||j.target===selectedAccount)&&j.state==='needs-attention'&&j.items?.some(i=>i.id===item.id)&&/unavailable|out of stock|not available/i.test(j.result?.error||''));if(!unavailable&&!force)return;
+  const failed=(state.preferredStore==='HEB'?state.hebJobs:state.jobs)||[];const unavailable=ShoppingAssist.availabilityFresh(price)&&price.available===false||failed.some(j=>(j.client===selectedAccount||j.target===selectedAccount)&&j.state==='needs-attention'&&j.items?.some(i=>i.id===item.id)&&/unavailable|out of stock|not available/i.test(j.result?.error||''));if(!unavailable&&!force)return;
   const panel=node('details',undefined,'replacement-panel'),key=scope(item.id);panel.open=openAlternatives.has(key);panel.append(node('summary',unavailable?'Unavailable? Review alternatives':'Compare alternatives'));panel.ontoggle=()=>{if(panel.isConnected){if(panel.open){openAlternatives.add(key);if(!panel.dataset.loaded){panel.remove();alternatives(host,item,force,onChoose);}}else openAlternatives.delete(key);}};
   if(!panel.open){host.append(panel);return;}panel.dataset.loaded='true';
   if(!replacementReviews.has(key))replacementReviews.set(key,{quantities:new Map(),remember:undefined,busy:false});const review=replacementReviews.get(key);panel.dataset.reviewKey=key;
@@ -51,7 +51,7 @@
       setBusy(true);if(!Number.isInteger(quantityChosen)||quantityChosen<1||quantityChosen>100)throw Error('Choose an alternative quantity from 1 to 100');
       if(onChoose){if(rememberChosen)await api('/api/replacement-preferences',{client:account,store,sourceId:item.id,targetId:candidate.id});if(account!==selectedAccount||store!==state.preferredStore||!host.isConnected)throw Error('This review changed. Choose the replacement again in the current draft.');replacementReviews.delete(key);onChoose({...candidate,chosenQuantity:quantityChosen});return;}
       const latest=await api('/api/state');if(account!==selectedAccount||store!==state.preferredStore||store!==latest.preferredStore)throw Error('The account or store changed. Review again.');
-      if((latest.currentPrices||[]).some(p=>p.client===account&&p.store===store&&p.id===candidate.id&&ShoppingAssist.fresh(p)&&p.available===false))throw Error('This alternative is now unavailable. Check another product.');
+      if((latest.currentPrices||[]).some(p=>p.client===account&&p.store===store&&p.id===candidate.id&&ShoppingAssist.availabilityFresh(p)&&p.available===false))throw Error('This alternative is now unavailable. Check another product.');
       const cart=selectedLines(latest,account),old=cart.find(i=>i.id===item.id)?.quantity||0,quantity=Math.max(quantityChosen,cart.find(i=>i.id===candidate.id)?.quantity||0),items=[...(old?[{id:item.id,quantity:0}]:[]),{id:candidate.id,quantity}];
       await api(store==='HEB'?'/api/heb/list':'/api/repeat',{target:account,items});cartSubmitted=true;if(rememberChosen)await api('/api/replacement-preferences',{client:account,store,sourceId:item.id,targetId:candidate.id});replacementReviews.delete(key);await refresh();notice('Replacement sent for '+(store==='HEB'?'H-E-B':'Walmart')+' to confirm.');
     }catch(e){if(cartSubmitted){replacementReviews.delete(key);await refresh();notice('Replacement was sent to '+(store==='HEB'?'H-E-B':'Walmart')+', but saving your remembered choice failed: '+e.message+' Review the cart before retrying.');}else notice(e.message);}finally{setBusy(false);}
@@ -61,7 +61,24 @@
   if(preferred){const forget=node('button','Forget remembered replacement','text-button');forget.disabled=review.busy;forget.onclick=async()=>{try{await api('/api/replacement-preferences',{client:selectedAccount,store:state.preferredStore,sourceId:item.id,remove:true});review.remember=false;await refresh();}catch(e){notice(e.message);}};panel.append(forget);}panel.append(rememberLabel);host.append(panel);
  }
  window.decorateShoppingProduct=(host,item,onChoose)=>alternatives(host,item,false,onChoose);
+ let clearingCart=false;
+ async function removeAllCartItems(){
+  if(clearingCart)return;
+  const account=selectedAccount,store=state.preferredStore,name=store==='HEB'?'H-E-B':'Walmart';
+  if(typeof pendingQuantityCount==='function'&&pendingQuantityCount()){notice('Wait for your cart changes to finish saving, then try again.');return;}
+  const items=[...new Set(selectedLines().map(item=>item.id))].map(id=>({id,quantity:0}));if(!items.length)return;
+  const accountName=state.clients.find(client=>client.id===account)?.name||'the selected account';
+  if(!window.confirm('Remove all '+items.length+' products from '+accountName+'’s '+name+' cart? Saved products and purchase history will stay.'))return;
+  if(account!==selectedAccount||store!==state.preferredStore)return;
+  clearingCart=true;let submitted=0;for(const id of ['cart-remove-all','cart-remove-all-top']){const button=$(id);if(button){button.disabled=true;button.textContent='Removing…';}}
+  try{for(let i=0;i<items.length;i+=100){await api(store==='HEB'?'/api/heb/list':'/api/repeat',{target:account,items:items.slice(i,i+100)});submitted+=Math.min(100,items.length-i);}
+   for(const item of items)cartSelection.delete(account+'|'+store+'|'+item.id);
+   notice('Removal of all '+items.length+' products sent to '+name+'. Wait for store confirmation before checkout.');await refresh();
+  }catch(error){notice((submitted?submitted+' removals were submitted. ':'')+'Could not finish clearing '+name+': '+error.message+' Review sync activity before retrying.');}
+  finally{clearingCart=false;for(const id of ['cart-remove-all','cart-remove-all-top']){const current=$(id);if(current){current.disabled=!selectedLines().length;current.textContent='Remove all';}}}
+ }
  function groupCart(){
+  const top=$('cart-remove-all-top');if(top){top.onclick=removeAllCartItems;top.disabled=clearingCart||!selectedLines().length;top.textContent=clearingCart?'Removing…':'Remove all';}
   if(document.activeElement?.closest('#list'))return;const host=$('list'),account=selectedAccount,store=state.preferredStore,prefix=account+'|'+store+'|',liveIds=new Set(selectedLines().map(i=>prefix+i.id));for(const key of cartSelection)if(key.startsWith(prefix)&&!liveIds.has(key))cartSelection.delete(key);if(host.querySelector('.cart-category'))return;const rows=[...host.querySelectorAll('.list-item')];if(!rows.length)return;
   const lines=selectedLines(),catalog=storeProducts(),groups=new Map();rows.forEach(row=>{const item=lines.find(l=>l.id===row.dataset.productId);if(!item)return;const product={...item,name:item.name||catalog.find(p=>p.id===item.id)?.name||'Saved store product'},category=categoryFor(product);if(!groups.has(category))groups.set(category,[]);groups.get(category).push({row,product});});if(!groups.size)return;host.replaceChildren(node('p','Select items for bulk removal. Checkout includes all items remaining in the store cart.','fine'));
   const selected=()=>lines.filter(i=>cartSelection.has(prefix+i.id)),bar=node('div',undefined,'cart-selection'),remove=node('button','Remove selected','text-button'),count=node('span',undefined,'fine'),update=()=>{count.textContent=selected().length+' selected';remove.disabled=!selected().length;};
@@ -70,8 +87,20 @@
    for(const {row,product} of members){const checkbox=node('input');checkbox.type='checkbox';checkbox.className='cart-item-choice';checkbox.checked=cartSelection.has(prefix+product.id);checkbox.setAttribute('aria-label','Select cart item '+product.name);checkbox.onchange=()=>{if(checkbox.checked)cartSelection.add(prefix+product.id);else cartSelection.delete(prefix+product.id);sync();};row.prepend(checkbox);alternatives(row,product,true);section.append(row);}
    all.onchange=()=>{for(const m of members){if(all.checked)cartSelection.add(prefix+m.product.id);else cartSelection.delete(prefix+m.product.id);m.row.querySelector('.cart-item-choice').checked=all.checked;}sync();};sync();host.append(section);
   }
-  remove.onclick=async()=>{try{const items=selected().map(i=>({id:i.id,quantity:0}));if(!items.length||items.length>100)throw Error('Select 1–100 items to remove');await api(store==='HEB'?'/api/heb/list':'/api/repeat',{target:account,items});for(const i of items)cartSelection.delete(prefix+i.id);await refresh();}catch(e){notice(e.message);}};bar.append(count,remove);host.append(bar);update();
+  remove.onclick=async()=>{try{const items=selected().map(i=>({id:i.id,quantity:0}));if(!items.length||items.length>100)throw Error('Select 1–100 items to remove');await api(store==='HEB'?'/api/heb/list':'/api/repeat',{target:account,items});for(const i of items)cartSelection.delete(prefix+i.id);await refresh();}catch(e){notice(e.message);}};const removeAll=node('button',clearingCart?'Removing…':'Remove all','text-button');removeAll.id='cart-remove-all';removeAll.disabled=clearingCart;removeAll.onclick=removeAllCartItems;bar.append(count,remove,removeAll);host.append(bar);update();host.querySelectorAll('.list-item').forEach((row,index)=>row.classList.toggle('cart-row-dark',index%2===0));
  }
+ let floatingSync;
+ function positionSyncStatus(){
+  const source=$('checkout-readiness');
+  if(!floatingSync){floatingSync=node('aside',undefined,'floating-cart-sync');floatingSync.setAttribute('aria-hidden','true');document.body.append(floatingSync);}
+  const working=source?.dataset.kind==='working';
+  if(!source||!working){floatingSync.hidden=true;return;}
+  floatingSync.hidden=false;
+  const text=source.querySelector('strong')?.textContent||'Updating your cart…';
+  if(floatingSync.dataset.message!==text){floatingSync.dataset.message=text;floatingSync.replaceChildren(node('strong',text));const progress=node('progress');progress.setAttribute('aria-label',text);floatingSync.append(progress);}
+ }
+ window.addEventListener('scroll',positionSyncStatus,{passive:true});window.addEventListener('resize',positionSyncStatus);window.addEventListener('hashchange',positionSyncStatus);
+ const syncObserver=new MutationObserver(positionSyncStatus);syncObserver.observe($('cart-view'),{subtree:true,childList:true,attributes:true,attributeFilter:['hidden','data-kind']});
  function checkout(){let host=$('checkout-readiness');if(!host){host=node('aside',undefined,'checkout-readiness');host.id='checkout-readiness';host.setAttribute('role','status');$('checkout-link').before(host);}const pending=typeof pendingQuantityCount==='function'?pendingQuantityCount():0,status=pending?{kind:'working',text:'Saving '+pending+' cart change'+(pending===1?'':'s')+'…',detail:'Your clicks are being sent to the household server. Store confirmation follows.'}:ShoppingAssist.readiness(state,selectedAccount,state.preferredStore);host.dataset.kind=status.kind;host.replaceChildren(node('strong',status.text),node('p',status.detail,'fine'));if(status.kind==='working'){const progress=node('progress');progress.setAttribute('aria-label',status.text);host.append(progress);}const coupon=(state.hebCoupons||[]).find(c=>c.client===selectedAccount);if(state.preferredStore==='HEB'&&!coupon?.running&&selectedLines().length){const coverage=ShoppingGuidance.couponCoverage(coupon,selectedLines());if(!coverage.sameCart)host.append(node('p','Coupon eligibility needs a fresh check for this cart.','fine'));}}
  function deals(){let host=$('price-drop-watch');if(!host){host=node('details',undefined,'panel price-drop-watch');host.id='price-drop-watch';$('suggestions').closest('section').after(host);}const evidence=JSON.stringify([selectedAccount,state.preferredStore,state.currentPrices,state.priceHistory,state.purchases,state.householdVariants,state.itemSnoozes,Math.floor(Date.now()/60000)]);if(evidence===dealEvidence)return;dealEvidence=evidence;const rows=ShoppingAssist.priceDrops(state,selectedAccount,state.preferredStore),signature=JSON.stringify([selectedAccount,state.preferredStore,rows]);if(signature===dealSignature)return;dealSignature=signature;const wasEmpty=host.dataset.empty!=='false';host.dataset.empty=String(!rows.length);if(rows.length&&wasEmpty)host.open=true;host.replaceChildren(node('summary','Price drops on your regular buys · '+rows.length));
   if(!rows.length){host.append(node('p','No verified price drops of at least 5% and $0.10 right now. Prices are checked as you browse and during store sync; this is not a live promotions feed.','fine'));return;}

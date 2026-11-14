@@ -31,13 +31,13 @@ module.exports=db=>{
    const current=cart(client);for(const job of jobs(client))for(const item of JSON.parse(job.data)){const old=current.find(x=>x.id===item.id);if(old)old.quantity=item.quantity;else current.push(item);}
    const catalog=db.prepare("SELECT data FROM purchases WHERE client=? AND store='HEB'").all(client).flatMap(row=>JSON.parse(row.data));catalog.push(...db.prepare("SELECT id,name FROM saved_store_products WHERE client=? AND store='HEB'").all(client));const linked=db.prepare("SELECT product_id AS id,name FROM household_variants WHERE client=? AND store='HEB'").all(client);
    const clean=items.map(item=>{if(!/^\d{1,25}$/.test(item.id)||!Number.isInteger(item.quantity)||item.quantity<0||item.quantity>100)throw Error('Use H-E-B item counts from 0 to 100');const product=[...catalog,...linked,...current].find(p=>p.id===item.id);if(!product)throw Error('Choose a saved H-E-B product');return {id:item.id,name:product.name,quantity:item.quantity,expectedQuantity:current.find(p=>p.id===item.id)?.quantity||0,ripeness:db.prepare("SELECT value FROM household_settings WHERE key='hebRipeness'").get()?.value||'No preference'};});
-   const id=crypto.randomUUID();db.prepare('INSERT INTO heb_jobs VALUES(?,?,?,?,?,NULL)').run(id,client,new Date().toISOString(),'queued',JSON.stringify(clean));return {ok:true,id};
+   const id=crypto.randomUUID();db.prepare('INSERT INTO heb_jobs VALUES(?,?,?,?,?,NULL)').run(id,client,new Date().toISOString(),'queued',JSON.stringify(clean));db.prepare('UPDATE heb_carts SET completed=0 WHERE client=?').run(client);return {ok:true,id};
   }
   if(route==='/api/bridge/heb/claim'){
    const active=jobs(client).find(j=>j.state==='running');if(active)return {job:null};const job=jobs(client)[0];if(job)db.prepare("UPDATE heb_jobs SET state='running' WHERE id=?").run(job.id);return {job:job?{id:job.id,items:JSON.parse(job.data)}:null};
   }
   if(route==='/api/bridge/heb/cart'){
-   if(!Array.isArray(data.lines)||data.lines.length>300||!Number.isFinite(data.observedAt))throw Error('Invalid H-E-B cart');
+   if(!Array.isArray(data.lines)||data.lines.length>300||!Number.isFinite(data.observedAt)||data.observedAt<=0||data.observedAt>Date.now()+60000||!Number.isFinite(new Date(data.observedAt).getTime()))throw Error('Invalid H-E-B cart timestamp');
    const lines=data.lines.map(x=>{if(!/^\d{1,25}$/.test(x.id)||!Number.isInteger(x.quantity)||x.quantity<1||x.quantity>100||typeof x.name!=='string')throw Error('Unreadable H-E-B quantity');return {id:x.id,name:x.name.slice(0,300),quantity:x.quantity,unit:'each'};});
    const old=db.prepare('SELECT synced FROM heb_carts WHERE client=?').get(client);if(old&&Date.parse(old.synced)>data.observedAt)return {ok:true};
    db.prepare('INSERT INTO heb_carts(client,data,synced) VALUES(?,?,?) ON CONFLICT(client) DO UPDATE SET data=excluded.data,synced=excluded.synced,completed=CASE WHEN excluded.data=\'[]\' THEN 0 ELSE heb_carts.completed END').run(client,JSON.stringify(lines),new Date(data.observedAt).toISOString());if(lines.length)db.prepare('UPDATE heb_carts SET last_nonempty=? WHERE client=?').run(JSON.stringify(lines),client);return {ok:true};
@@ -45,7 +45,7 @@ module.exports=db=>{
   if(route==='/api/bridge/heb/result'||route==='/api/bridge/heb/progress'){
    const job=db.prepare('SELECT * FROM heb_jobs WHERE id=? AND client=?').get(data.id,client);if(!job||job.state!=='running')return {ok:true};
    const report=(data.report||[]).slice(0,100).map(x=>({id:String(x.id||''),name:String(x.name||'').slice(0,300),status:String(x.status||'').slice(0,40)}));const result={report,error:data.error?String(data.error).slice(0,400):null};
-   const done=route.endsWith('/result');const ok=!result.error&&report.length===JSON.parse(job.data).length&&report.every(x=>['updated','already-present','removed'].includes(x.status));db.prepare('UPDATE heb_jobs SET state=?,result=? WHERE id=?').run(done?(ok?'finished':'needs-attention'):'running',JSON.stringify(result),job.id);return {ok:true};
+   const done=route.endsWith('/result'),expected=JSON.parse(job.data),ids=new Set(report.map(x=>x.id));const complete=report.length===expected.length&&ids.size===expected.length&&expected.every(item=>ids.has(item.id));const statusesMatch=complete&&expected.every(item=>{const status=report.find(x=>x.id===item.id)?.status;return item.quantity===0?['removed','already-present'].includes(status):['updated','already-present'].includes(status);});const ok=!result.error&&statusesMatch;if(done&&(!complete||!statusesMatch)&&!result.error)result.error='The store did not confirm every requested product. Review the affected cart items.';db.prepare('UPDATE heb_jobs SET state=?,result=? WHERE id=?').run(done?(ok?'finished':'needs-attention'):'running',JSON.stringify(result),job.id);return {ok:true};
   }
   throw Error('Unknown H-E-B action');
  }

@@ -58,3 +58,60 @@
 .brand-mascot{width:68px;height:68px;flex-shrink:0;background:transparent;border-radius:0}.brand-mascot img{display:block;width:100%;height:100%;object-fit:contain}.brand>span:last-child{min-width:0}.brand small{max-width:190px;overflow-wrap:anywhere}@media(max-width:720px){.brand-mascot{width:56px;height:56px}.brand small{max-width:140px}}
 
 .product-line{display:flex;align-items:center;gap:12px;min-width:0}.product-line>span:not(.product-photo),.product-line>div{min-width:0;overflow-wrap:anywhere}.plan-product-preview{padding:10px;background:var(--soft);border-radius:9px;font-size:12px;margin:10px 0}.purchase-card li.product-line{list-style:none;align-items:flex-start}.purchase-card ul:has(.product-line){padding-left:0}.tip-products{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}.stat-tip>.product-photo{float:right;margin:0 0 10px 12px}#stats-patterns .product-line{align-items:flex-start}@media(max-width:720px){.product-line{gap:9px}}
+.usual-selection{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:16px 0}.usual-selection select{max-width:100%}
+
+.stat-chart-legend .legend-heb{background:#315e48}.stat-chart-legend .legend-walmart{background:#6687a1}
+
+/* Dedicated live cart view keeps one shared set of cart controls. */
+#shop-view>.layout{grid-template-columns:minmax(0,1fr)}
+#cart-view{max-width:1100px;margin-inline:auto}#cart-view .list-card{position:static}#cart-view .list-card #list{max-height:none;overflow:visible}#cart-view .activity{margin-top:20px}
+
+/* Alternating list review rows stay distinct while choosing products. */
+#plan-review .plan-row{background:#fff;border:1px solid #dfe5db;border-radius:12px;padding:18px;margin:10px 0;min-width:0}
+#plan-review .plan-row.plan-row-alternate{background:#edf3e9;border-color:#cfddc8}
+#plan-review .plan-row:focus-within{box-shadow:0 0 0 2px #789780}
+@media(max-width:720px){#plan-review .plan-row{padding:14px}}
+
+/* Shared striping counts item rows only, ignoring headings and helper text. */
+main :is(.list-item,.suggestion-row,.product,.usual-row,.pack-item,.stat-driver,.price-drop,.replacement-choice,.job){border-radius:10px;padding:12px;background:#fff}
+main :nth-child(even of :is(.list-item,.suggestion-row,.product,.usual-row,.pack-item,.stat-driver,.price-drop,.replacement-choice,.job)){background:#edf3e9}
+main :is(.pack-library-row,.purchase-card):nth-child(even of :is(.pack-library-row,.purchase-card)){background:#edf3e9}
+main tbody>tr:nth-child(even){background:#edf3e9}
+main :is(ul,ol)>li{padding:7px 10px;border-radius:6px}
+main :is(ul,ol)>li:nth-child(even){background:#edf3e9}
+:is(#saved-defaults,#saved-rules) > p{padding:12px;border-radius:10px}
+:is(#saved-defaults,#saved-rules) > p:nth-of-type(even){background:#edf3e9}
+main .pack-library-row[aria-pressed=true]{background:#dbe8d4;border-color:#789780}
+
+/* Stripe complete review cards directly, including drafts already rendered. */
+#plan-review .review-category>.plan-row:nth-child(even of .plan-row){background:#e5efdf;border-color:#bdcfb3}
+#plan-review .plan-row .plan-product-preview{background:transparent;padding:10px 0}
+
+.floating-cart-sync{position:fixed;z-index:50;left:50%;transform:translateX(-50%);width:min(520px,calc(100% - 24px));padding:12px 16px;background:#edf2fa;border:1px solid #bacbe0;border-radius:12px;box-shadow:0 4px 18px #243d3326;pointer-events:none}.floating-cart-sync[data-edge=top]{top:12px}.floating-cart-sync[data-edge=bottom]{bottom:12px}.floating-cart-sync strong{display:block;font-size:14px}.floating-cart-sync progress{display:block;width:100%;height:6px;margin-top:8px}
+
+/* Keep cart sync progress visible across every page. */
+.floating-cart-sync{top:16px;right:16px;bottom:auto;left:auto;transform:none;width:min(360px,calc(100% - 24px));z-index:100}
+@media(max-width:720px){.floating-cart-sync{top:12px;right:12px}}
+
+/* Cart stripes continue across grocery categories in displayed order. */
+#list .list-item{background:#fff}
+#list .list-item.cart-row-dark{background:#e5efdf}
+
+/* Unmatched requests override alternating review backgrounds until resolved. */
+#plan-review .review-category>.plan-row.plan-row-unmatched:nth-child(n){background:#fff0f0;border:2px solid #bd5555;box-shadow:0 0 0 2px #fff}
+#plan-review .plan-row-unmatched .unmatched-hint{color:#8c2929;font-weight:600;font-size:12px}
+
+#plan-review details.plan-row>summary{display:list-item;cursor:pointer;font-size:14px;font-weight:400;padding:2px 0;list-style-position:inside}#plan-review .plan-row>summary>input{margin-right:8px}#plan-review .review-item-brief{display:block;color:var(--muted);font-size:12px;margin:5px 0 0 24px}#plan-review details.review-category>summary{cursor:pointer;padding:10px 0;list-style-position:inside}#plan-review details.review-category>summary>.review-category-heading{display:inline-flex;margin:0;vertical-align:middle;gap:8px}#plan-review .plan-row[open]>summary{margin-bottom:12px}
+
+#plan-review details.plan-row:not([open])>summary{position:relative;padding-right:74px;min-height:58px}#plan-review .plan-row>summary .review-collapsed-photo{position:absolute;right:0;top:50%;transform:translateY(-50%);width:54px;height:54px;object-fit:contain}#plan-review .plan-row[open]>summary .review-collapsed-photo{display:none}
+
+#plan-review details.plan-row:not([open])>summary{padding-right:135px;min-height:104px}#plan-review .plan-row>summary .review-collapsed-photo{right:33px;top:0;transform:none}#plan-review .review-collapsed-quantity{position:absolute;right:0;top:62px;margin:0;display:flex;width:125px;justify-content:center}#plan-review .review-collapsed-quantity input{width:44px!important;margin:0}#plan-review .plan-row[open]>summary .review-collapsed-quantity{display:none}
+
+/* Compact quantity fields need room for digits, without native spinner padding. */
+#plan-review .plan-row .review-collapsed-quantity input[type=number]{box-sizing:border-box;width:56px!important;min-width:56px;padding:7px 3px!important;text-align:center;appearance:textfield;-moz-appearance:textfield;font-size:14px;line-height:1.4}
+#plan-review .review-collapsed-quantity input::-webkit-inner-spin-button,#plan-review .review-collapsed-quantity input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+#plan-review .review-collapsed-quantity{width:140px;gap:4px}#plan-review .review-collapsed-quantity button{flex:0 0 30px;min-width:30px;padding:5px!important}
+
+#plan-review details.plan-row:not([open])>summary{padding-right:145px}
+
+#plan-review .review-package-warning{display:block;color:#a52d2d;font-size:12px;font-weight:650;line-height:1.45;margin:8px 0 0 24px}#plan-review .plan-row[open]>summary .review-package-warning{display:none}

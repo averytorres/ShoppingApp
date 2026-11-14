@@ -66,8 +66,9 @@ db.exec("CREATE TABLE IF NOT EXISTS cart_lists(client TEXT NOT NULL,id TEXT NOT 
 if(!db.prepare('PRAGMA table_info(account_carts)').all().some(row=>row.name==='last_nonempty'))db.exec('ALTER TABLE account_carts ADD COLUMN last_nonempty TEXT');
 if(!db.prepare('PRAGMA table_info(account_carts)').all().some(row=>row.name==='observed_at'))db.exec('ALTER TABLE account_carts ADD COLUMN observed_at INTEGER NOT NULL DEFAULT 0');
 function saveCart(client,cart){
-  if(!cart||!Array.isArray(cart.lines)||!Number.isFinite(cart.observedAt)||Date.now()-cart.observedAt>120000)return;
-  const lines=cart.lines.filter(line=>!line.restricted&&idOK(String(line.id))&&quantityOK(line.quantity)).map(line=>({id:String(line.id),quantity:line.quantity,...(line.offerId?{offerId:line.offerId}:{}),name:String(line.name||'').slice(0,300)}));
+  if(!cart||!Array.isArray(cart.lines)||!Number.isFinite(cart.observedAt)||cart.observedAt<=0||cart.observedAt>Date.now()+60000||Date.now()-cart.observedAt>120000)return;
+  if(cart.lines.some(line=>!line||(!line.restricted&&(!idOK(String(line.id))||!quantityOK(line.quantity)))))return;
+  const lines=cart.lines.filter(line=>!line.restricted).map(line=>({id:String(line.id),quantity:line.quantity,...(line.offerId?{offerId:line.offerId}:{}),name:String(line.name||'').slice(0,300)}));
   const previous=db.prepare('SELECT completed,last_nonempty,observed_at,data FROM account_carts WHERE client=?').get(client);
   if(previous&&cart.observedAt<=previous.observed_at)return;
   db.prepare('INSERT INTO account_carts(client,data,synced,completed) VALUES(?,?,?,?) ON CONFLICT(client) DO UPDATE SET data=excluded.data,synced=excluded.synced,completed=excluded.completed').run(client,JSON.stringify(lines),new Date().toISOString(),previous?.completed&&lines.length?1:0);
@@ -114,15 +115,17 @@ const product = item => {
     url: `https://www.walmart.com/ip/${item.id}`, quantity: quantityOK(item.quantity) ? item.quantity : 1 };
 };
 let learningCache={key:'',value:null};
+const recommendationMethod=()=>recoveryMode?'date-based':db.prepare("SELECT value FROM household_settings WHERE key='recommendationMethod'").get()?.value==='date-based'?'date-based':'category-cycle';
+const categoryRecommendations=recoveryMode?{revision:0,status:()=>({revision:0,clients:{}}),retry:()=>{}}:require('./recommendation-service')({dataDirectory,onChange:()=>{learningCache={key:'',value:null};notify();}});
 const preferredStore=()=>db.prepare("SELECT value FROM household_settings WHERE key='preferredStore'").get()?.value||'HEB';
 function sharedLearning(){
  const groups=db.prepare('SELECT id,client,name,kind,note FROM household_items').all();const links=db.prepare('SELECT client,store,product_id AS productId,unit,group_id AS groupId,factor,name FROM household_variants').all();
  const carts=db.prepare('SELECT client,id,quantity FROM cart_lists').all();const stamp=db.prepare('SELECT count(*) AS count,max(rowid) AS latest,(SELECT max(id) FROM price_repair_audit) AS repairs FROM purchases').get();const store=preferredStore();
- const key=JSON.stringify({groups,links,carts,stamp,store,day:householdCalendar.today()});
+ const key=JSON.stringify({groups,links,carts,stamp,store,day:householdCalendar.today(),method:recommendationMethod(),recommendationRevision:categoryRecommendations.revision});
  if(learningCache.key!==key){
   const purchases=db.prepare('SELECT client,created,data,store,source FROM purchases').all().map(row=>({...row,items:JSON.parse(row.data)}));const catalog=new Map();
   for(const purchase of purchases)for(const item of purchase.items){const unit=item.unit||'each';const key=purchase.client+'|'+purchase.store+'|'+item.id+'|'+unit;catalog.set(key,{client:purchase.client,store:purchase.store,productId:item.id,name:item.name,unit});}
-  const learned=householdLearning.learn(purchases,carts,groups,links,store,Date.now(),7);learningCache={key,value:{...learned,itemCatalog:[...catalog.values()],groups,links}};
+  const learned=householdLearning.learn(purchases,carts,groups,links,store,Date.now(),7,{method:recommendationMethod(),categoryCycle:categoryRecommendations});learningCache={key,value:{...learned,itemCatalog:[...catalog.values()],groups,links}};
  }
  return learningCache.value;
 }
@@ -149,7 +152,7 @@ setTimeout(weeklyHistoryTick,15000);setInterval(weeklyHistoryTick,60000);
 function state() {
   const products = read('products');
   const shared=sharedLearning();
-  return { householdName:db.prepare("SELECT value FROM household_settings WHERE key='householdName'").get()?.value||'',...shoppingTools.state(),recoveryMode,productImages:productImages.state(),packDismissals:db.prepare('SELECT client,id FROM pack_dismissals').all(),hebPreferences:{ripeness:db.prepare("SELECT value FROM household_settings WHERE key='hebRipeness'").get()?.value||'No preference'},currentPrices:db.prepare('SELECT client,store,id,data FROM store_prices').all().map(p=>({...JSON.parse(p.data),client:p.client,store:p.store,id:p.id})),purchaseCompletions:purchaseCompletion.state(),storeTasks:storeTasks.state(),historySchedule:{day:'Monday',hour:2,timeZone:'America/New_York'},...hebCart.state(),products, preferredStore:preferredStore(),householdItems:shared.groups,householdVariants:shared.links,itemCatalog:[...db.prepare('SELECT client,store,id AS productId,name,unit,url FROM saved_store_products').all(),...shared.itemCatalog,...shared.links,...products.map(item=>({client:null,store:'Walmart',productId:item.id,name:item.name,unit:'each'}))], defaultClientId:db.prepare("SELECT value FROM household_settings WHERE key='defaultClientId'").get()?.value||null, packs:readPacks(), listDefaults:db.prepare('SELECT store,term,id,quantity FROM store_list_defaults').all(),listRules:db.prepare('SELECT trigger,extra,mode FROM list_rules').all(), usualSuggestions:shared.suggestions,suggestions:shared.suggestions.filter(item=>item.daysUntil<=3), runnerErrors:Object.fromEntries(runnerErrors), history: read('history').sort((a,b)=>b.startedAt.localeCompare(a.startedAt)),
+  return { householdName:db.prepare("SELECT value FROM household_settings WHERE key='householdName'").get()?.value||'',...shoppingTools.state(),recoveryMode,productImages:productImages.state(),packDismissals:db.prepare('SELECT client,id FROM pack_dismissals').all(),hebPreferences:{ripeness:db.prepare("SELECT value FROM household_settings WHERE key='hebRipeness'").get()?.value||'No preference'},currentPrices:db.prepare('SELECT client,store,id,data FROM store_prices').all().map(p=>({...JSON.parse(p.data),client:p.client,store:p.store,id:p.id})),purchaseCompletions:purchaseCompletion.state(),storeTasks:storeTasks.state(),historySchedule:{day:'Monday',hour:2,timeZone:'America/New_York'},...hebCart.state(),products, preferredStore:preferredStore(),recommendationMethod:recommendationMethod(),recommendationStatus:categoryRecommendations.status(),householdItems:shared.groups,householdVariants:shared.links,itemCatalog:[...db.prepare('SELECT client,store,id AS productId,name,unit,url FROM saved_store_products').all(),...shared.itemCatalog,...shared.links,...products.map(item=>({client:null,store:'Walmart',productId:item.id,name:item.name,unit:'each'}))], defaultClientId:db.prepare("SELECT value FROM household_settings WHERE key='defaultClientId'").get()?.value||null, packs:readPacks(), listDefaults:db.prepare('SELECT store,term,id,quantity FROM store_list_defaults').all(),listRules:db.prepare('SELECT trigger,extra,mode FROM list_rules').all(), usualSuggestions:shared.suggestions,suggestions:shared.suggestions.filter(item=>item.automaticSuggestionEligible!==false&&(item.recommended||item.daysUntil<=3)), runnerErrors:Object.fromEntries(runnerErrors), history: read('history').sort((a,b)=>b.startedAt.localeCompare(a.startedAt)),
     list: db.prepare('SELECT client,id,quantity FROM cart_lists').all(),
     carts:db.prepare('SELECT client,synced,completed,(last_nonempty IS NOT NULL AND completed=0) AS canComplete FROM account_carts').all(),
     purchases:db.prepare('SELECT id,client,created,data,store,source FROM purchases ORDER BY created DESC LIMIT 1000').all().map(row=>({...row,items:JSON.parse(row.data),receipt:db.prepare('SELECT subtotal,total,state,checked,source_url FROM purchase_receipts WHERE purchase=?').get(row.id)||null,data:undefined})),
@@ -264,6 +267,11 @@ const server = http.createServer(async(req,res)=>{
         }
         const result={imported,duplicates};db.prepare('UPDATE import_previews SET result=? WHERE id=?').run(JSON.stringify(result),data.id);db.exec('COMMIT');wakeStoreTasks();return json(200,result);
       }catch(error){db.exec('ROLLBACK');throw error;}
+    }
+    if(req.method==='POST'&&url.pathname==='/api/recommendations/method'){
+      const data=await body(req);if(!['category-cycle','date-based'].includes(data.method))throw Error('Choose a recommendation method');
+      db.prepare("INSERT OR REPLACE INTO household_settings VALUES('recommendationMethod',?)").run(data.method);
+      learningCache={key:'',value:null};if(data.refresh)categoryRecommendations.retry();notify();return json(200,{ok:true,method:data.method});
     }
     if(req.method==='POST'&&url.pathname==='/api/heb/preferences'){const data=await body(req);if(!['No preference','Ready Now','Ready Later'].includes(data.ripeness))throw Error('Choose a ripeness preference');db.prepare("INSERT OR REPLACE INTO household_settings VALUES('hebRipeness',?)").run(data.ripeness);return json(200,{ok:true});}
     if(req.method==='POST' && url.pathname==='/api/preferred-store'){
@@ -413,7 +421,7 @@ const server = http.createServer(async(req,res)=>{
       if(job.state!=='running')return json(200,{ok:true});
       const results=(data.report||[]).slice(0,100).map(item=>({id:String(item.id||''),name:String(item.name||'').slice(0,300),status:String(item.status||'error'),quantity:Number(item.quantity)||null,detail:String(item.detail||'').slice(0,400)}));
       const clean={report:results,error:data.error?String(data.error).slice(0,400):null};
-      const attention=clean.error||results.length!==(Array.isArray(JSON.parse(job.data))?JSON.parse(job.data):JSON.parse(job.data).items).length||results.some(item=>!['added','already-present','updated','removed'].includes(item.status));
+      const payload=JSON.parse(job.data),expected=Array.isArray(payload)?payload:payload.items||[],ids=new Set(results.map(item=>item.id));const confirmed=results.length===expected.length&&ids.size===expected.length&&expected.every(item=>{const result=results.find(row=>row.id===String(item.id));return result&&(item.quantity===0?['removed','already-present']:['added','already-present','updated']).includes(result.status);});const attention=!!clean.error||!confirmed;if(!confirmed&&!clean.error)clean.error='The store did not confirm every requested product and action. Review the affected cart items.';
       db.prepare('UPDATE jobs SET state=?,result=? WHERE id=?').run(attention?'needs-attention':'finished',JSON.stringify(clean),data.id);saveCart(job.target,data.cart);return json(200,{ok:true});
     }
     if(req.method==='POST' && url.pathname==='/api/bridge/progress'){

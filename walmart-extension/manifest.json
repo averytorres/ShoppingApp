@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Home Grocery Helper",
-  "version": "0.5.17",
+  "version": "0.5.22",
   "minimum_chrome_version": "120",
   "description": "Capture Walmart products and add a saved grocery list to your cart for review.",
   "permissions": [

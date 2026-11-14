@@ -84,11 +84,22 @@ the Chrome profile signed into the store account you intend to use.
 Previous/Next or **Show all** to browse. Older habits and items needing a product
 choice are separate. Expand **Why this item?** to see purchase-date and timing evidence.
 
-Choose **Suggest a shopping list** to review a draft. Fairly regular recent
-patterns can start selected; uncertain items need a decision. Select a category
+Choose **Suggest a shopping list** to review a draft. Frequent recent purchases can start selected even when their timing varies.
+The draft uses your last 16 shopping dates and reduces the priority of older habits.
+It starts with at most 30 items; products needing a match and substitute products
+stay optional. Review what you have at home and change any product or quantity. Select a category
 or individual items, adjust quantities, then accept/send the reviewed selection.
+Use **Starting selection → Focused** for up to five stronger repeat-purchase
+suggestions, or **Broader** for up to thirty starting items. Focused ranking
+combines recent purchase frequency, restock timing and similar earlier baskets.
+Changing this setting updates the checkboxes but keeps your quantity edits;
+the other items remain available to select. It is a starting list, not a claim
+that those items are missing from your home.
 The draft preserves your edits if background data changes and tells you when its
 evidence needs another look. Suggested quantities are starting amounts, not inventory.
+Counts start from your most recent purchase day's amount, rounded to the selected
+store's whole package size. Products sold by weight start at one item/package;
+the store determines final weight. Review and adjust these counts before sending.
 
 If you already have enough, open **We have enough** and skip the item for a week
 or choose a date. It stays out of automatic suggestions and price-drop alerts
@@ -196,3 +207,18 @@ your household data and backups are retained. Remove the helper separately in Ch
 
 For a problem, see [Troubleshooting](TROUBLESHOOTING.md). For source development,
 see [Contributing](../CONTRIBUTING.md).
+
+
+## Choose the suggestion method
+
+Settings → Shopping suggestions defaults to **Category + cycle**. It combines grocery category and restock timing for purchases roughly every one to four weeks, using history from both stores. The standard draft starts with up to 15 items; review the choices and edit quantities before sending anything.
+
+Choose **Previous method** in the same menu to roll back immediately. This preserves your purchase history, saved products, preferences, shopping lists and store carts. The choice is remembered after a server restart.
+
+Suggestions refresh in the background when the purchase history or day changes. While they update, the page shows their progress. If the local trainer is unavailable, the application clearly reports that it is using the previous method.
+
+### Hosting-PC trainer setup
+
+The new method uses a local Python trainer; trained household models stay in the private data folder. This PC has been configured separately. On another host, install Python 3.12 and run `setup-recommendations.ps1` from the program folder once, then click **Update suggestions** in Settings. For a custom household-data location, pass `-DataDirectory` (or set `GROCERY_DATA_DIR`) to that script. The script creates an isolated environment and installs the pinned requirements; an internet connection is needed for that setup. Existing Node-only installations can continue using **Previous method**.
+
+Historical tests verify that the implementation matches the tested model; they do not establish 90% future accuracy.

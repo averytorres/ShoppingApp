@@ -35,7 +35,7 @@
       const client=$('import-account').value,store=$('import-store').value;
       const result=await api('/api/history-import/preview',{client,store,format,text:await file.text()});
       if(version!==previewVersion||chosenFile!==$('import-file').files[0]||client!==$('import-account').value||store!==$('import-store').value)throw Error('The destination changed. Preview again.');display(result);
-    }catch(error){message(error.message);}finally{$('import-preview').disabled=false;}
+    }catch(error){if(version===previewVersion)message(error.message);}finally{$('import-preview').disabled=commitBusy;}
   };
   $('import-commit').onclick=async()=>{
     if(commitBusy)return;commitBusy=true;syncCommitControls();

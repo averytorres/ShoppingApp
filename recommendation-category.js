@@ -1,0 +1,21 @@
+const categoryFor=item=>{
+ const name=item.name.toLowerCase();
+ if(/\b(hemorrhoid|hydrocortisone|lidocaine|anti-itch|vitamins?|supplement|tablets?|capsules?|antibiotic|ointment|first aid|shampoo|conditioner|toothpaste|toothbrush|deodorant|cotton swabs|q-tips|lotion|sunscreen|body wash|hand soap|razors?|bandages?)\b/.test(name))return 'Health & personal care';
+ if(/\b(cat|dog|pet)\b.*\b(food|treats|litter)\b/.test(name))return 'Pet supplies';
+ if(/\b(wipes|bleach|detergent|toilet paper|paper towels|trash bags|cleaner|dish soap)\b/.test(name))return 'Household';
+ if(/\b(frozen|ice cream|popsicles?)\b/.test(name))return 'Frozen';
+ if(/\b(juice|coffee|tea|soda|sparkling water|coconut water|drinking water|bottled water)\b/.test(name))return 'Drinks';
+ if(/\b(chips|crackers|cookies|candy|chocolate|popcorn|snack|granola bars|almonds|peanuts|pistachios|cashews|walnuts|pecans|nuts|trail mix)\b/.test(name)&&!/chocolate milk/.test(name))return 'Snacks & sweets';
+ if(/\b(?:corn on the cob|(?:fresh .*|sweet )?cob corn)\b/.test(name))return 'Produce';
+ if(/\b(?:condensed|evaporated) milk\b|\bgoya\b.*\bcoconut milk\b/.test(name))return 'Pantry';
+ if(/\b\d+(?:\.\d+)?\s*oz\s+can\b/.test(name))return 'Pantry';
+ if(/\b(canned|chick[ -]?peas|garbanzo|lentils|beans|pasta|macaroni|rice|cereal|flour|sugar|oil|sauce|soup|peanut butter|vinegar|salt|seasoning|spice)\b/.test(name))return 'Pantry';
+ if(/\b(beef|chicken|pork|turkey|bacon|sausage|salmon|shrimp|fish)\b/.test(name))return 'Meat & seafood';
+ if(/\bkraft\s+singles\b/.test(name))return 'Dairy & eggs';
+ if(/\b(milk|butter|eggs?|cheese|mozzarella|cheddar|parmesan|feta|gouda|brie|paneer|queso|yogurt|cream)\b/.test(name))return 'Dairy & eggs';
+ if(/\b(bread|tortillas?|bagels?|buns?|rolls)\b/.test(name))return 'Bakery';
+ if(/\b(bananas?|papaya|apples?|avocados?|romaine|salad blend|mushrooms?|lettuce|tomato(?:es)?|onions?|potatoes|potato|blueberries|blackberries|raspberries|strawberries|grapes|cucumbers?|beets|watermelon|cantaloupe|celery|cilantro|carrots?|cauliflower|eggplant|mango(?:es)?|plums?|peach(?:es)?|spinach|kale|mandarins|lemons|broccoli|cabbage|ginger|peppers?|pineapple|honeydew|pomegranate)\b/.test(name))return 'Produce';
+ return 'Other';
+};
+const productCategories=['All','Produce','Dairy & eggs','Bakery','Meat & seafood','Frozen','Pantry','Drinks','Snacks & sweets','Household','Health & personal care','Pet supplies','Other'];
+module.exports={categoryFor,productCategories};

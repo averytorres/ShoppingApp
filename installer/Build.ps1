@@ -10,6 +10,9 @@ try {
     # Explicit allowlist: no Git history, .data, photos, receipts, profiles, logs or local operational notes.
     Get-ChildItem -LiteralPath $root -File -Filter '*.js' | Copy-Item -Destination $app
     foreach ($file in @('package.json','package-lock.json')) { Copy-Item -LiteralPath (Join-Path $root $file) -Destination $app }
+    foreach ($file in @('recommendation-trainer.py','recommendation-requirements.txt','setup-recommendations.ps1')) { Copy-Item -LiteralPath (Join-Path $root $file) -Destination $app }
+    New-Item -ItemType Directory -Path (Join-Path $app 'models') | Out-Null
+    foreach ($file in @('replenishment-public.json','README.md')) { Copy-Item -LiteralPath (Join-Path $root ('models\'+$file)) -Destination (Join-Path $app 'models') }
     foreach ($folder in @('web','walmart-extension')) {
         New-Item -ItemType Directory -Path (Join-Path $app $folder) | Out-Null
         Get-ChildItem -LiteralPath (Join-Path $root $folder) -File | Where-Object { $_.Extension -in @('.js','.html','.css','.json','.csv') } | Copy-Item -Destination (Join-Path $app $folder)
