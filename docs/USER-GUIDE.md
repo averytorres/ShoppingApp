@@ -8,7 +8,7 @@ Use Windows 10/11 x64 and desktop Google Chrome 120 or newer. Install once on a
 PC that can stay awake and signed into Windows. The installer bundles Node and
 dependencies; you do not need a developer setup.
 
-1. [Download the installer](https://github.com/averytorres/ShoppingApp/releases/latest/download/Install-Home-Grocery.exe). This private repository requires GitHub access to download releases.
+1. [Download the installer](https://github.com/averytorres/ShoppingApp/releases/latest/download/Install-Home-Grocery.exe). No GitHub account is required.
 2. Run it, enter a household name, and choose H-E-B or Walmart as the main store.
 3. Choose whether to start quietly at Windows sign-in. Allow private-network
    access if phones or other computers will use the website; Windows asks for

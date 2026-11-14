@@ -11,8 +11,7 @@
 
 Install once on the PC that stays on, then use the website from your phone or
 laptop. The installer includes Node and dependencies. Chrome helper approval and
-store sign-in are the remaining manual steps. **This repository is private:**
-release downloads require a GitHub account with access to it.
+store sign-in are the remaining manual steps. The installer is available publicly; no GitHub account is required to download it.
 
 <p align="center">
   A household grocery planner that turns familiar routines into a shopping list—<br>

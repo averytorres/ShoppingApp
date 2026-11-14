@@ -19,8 +19,8 @@ separate from installing the server.
 
 ## The download is missing or GitHub shows 404
 
-This repository is private. Sign into the GitHub account that has repository
-access. The download button points to the latest published Windows installer;
+The download button points to the latest published Windows installer. If a download
+is unavailable, open the Releases page and check for an available installer;
 downloading the source-code ZIP is not the same as downloading the installer.
 
 ## “Cannot reach the household server” or “Failed to fetch”

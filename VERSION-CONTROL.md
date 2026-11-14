@@ -1,6 +1,6 @@
 # Code snapshots and rollback
 
-This private repository stores the website, server, browser extension, dependency
+This repository stores the website, server, browser extension, dependency
 lockfile, and operational scripts. Household data, receipt history, photos,
 backups, browser sessions, credentials, and installed dependencies stay outside
 Git. Use [Backup and recovery](BACKUP-RECOVERY.txt) for household data and
