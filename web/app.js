@@ -158,7 +158,7 @@ function renderSuggestions(){
   const badge=node('span',label,'suggestion-due');badge.dataset.timing=ShoppingGuidance.group(item)==='regular'?'soon':'uncertain';info.append(badge);
   const detail=node('details',undefined,'suggestion-reason');detail.append(node('summary','Why this item?'),node('p','Based on '+item.purchaseCount+' purchase days within the last year from '+(item.sources||[]).map(store=>store==='HEB'?'H-E-B':store).join(' and ')+'. '+ShoppingGuidance.reliabilityLabel(item)+'. '+(item.gapCount?'Observed gaps range from '+item.minGap+' to '+item.maxGap+' days. ':'')+(item.recommendationReason?item.recommendationReason+' ':'')+'This estimates timing, not what you have at home. '+ShoppingGuidance.quantityNote(item)));const reasonKey=selectedAccount+'|'+item.store+'|'+(item.householdItemId||item.id||item.name);detail.open=expandedSuggestionReasons.has(reasonKey);detail.ontoggle=()=>{if(detail.isConnected){if(detail.open)expandedSuggestionReasons.add(reasonKey);else expandedSuggestionReasons.delete(reasonKey);}};info.append(detail);if(item.id&&window.snoozeControl)info.append(window.snoozeControl(item));window.decorateShoppingProduct?.(info,item);
   const actions=node('div',undefined,'suggestion-actions');
-  if(item.needsMatch){const match=node('button','Choose product','secondary');match.onclick=()=>{showView('setup');const section=$('settings-matches');section.querySelector('details').open=true;section.scrollIntoView({block:'start',behavior:'smooth'});};actions.append(match);}
+  if(item.needsMatch){const match=node('button','Choose product','secondary');match.onclick=()=>{showView('setup');showSettingsTab('settings-matches');};actions.append(match);}
   else if(item.store==='HEB'){
    actions.append(node('span',item.unit==='each'?'Start: '+ShoppingGuidance.startingAmount(item)+(ShoppingGuidance.startingAmount(item)===1?' item/pack':' items/packs'):'Start: 1 item/package · sold by weight','suggestion-amount'));
    const add=node('button','+ Add','secondary');add.setAttribute('aria-label','Add '+item.name+' to H-E-B cart');add.onclick=()=>setQuantity(item.id,Math.max(hebLines().find(l=>l.id===item.id)?.quantity||0,item.unit==='each'?Math.min(100,item.quantity):1));actions.append(add);
@@ -270,4 +270,21 @@ $('cart-details').open=!phoneLayout.matches;
 phoneLayout.addEventListener('change',event=>{$('cart-details').open=!event.matches;});
 
 $('shop-store').onchange=()=>changeStore($('shop-store').value);
-document.querySelectorAll('[data-settings-jump]').forEach(button=>button.onclick=()=>{const section=$(button.dataset.settingsJump);const detail=section.querySelector(':scope > details');if(detail)detail.open=true;section.scrollIntoView({block:'start',behavior:'smooth'});});
+function showSettingsTab(id,focus=false){
+ const buttons=[...document.querySelectorAll('[data-settings-jump]')];
+ if(!buttons.some(button=>button.dataset.settingsJump===id))id='settings-shopping';
+ for(const button of buttons){const active=button.dataset.settingsJump===id;button.setAttribute('aria-selected',String(active));button.tabIndex=active?0:-1;button.classList.toggle('active',active);$(button.dataset.settingsJump).hidden=!active;if(active&&focus)button.focus();}
+ $('settings-produce').hidden=id!=='settings-shopping';
+ localStorage.setItem('settingsTab',id);
+}
+const settingsNav=document.querySelector('.settings-nav');
+settingsNav.setAttribute('role','tablist');
+for(const button of settingsNav.querySelectorAll('[data-settings-jump]')){
+ const id=button.dataset.settingsJump,panel=$(id);button.id='tab-'+id;button.setAttribute('role','tab');button.setAttribute('aria-controls',id);panel.setAttribute('role','tabpanel');panel.setAttribute('aria-labelledby',button.id);
+ // Replace the section disclosure with a heading, keeping nested editors collapsible.
+ const disclosure=panel.querySelector(':scope > details');
+ if(disclosure){const summary=disclosure.querySelector(':scope > summary'),heading=node('h2',summary.textContent);summary.replaceWith(heading);disclosure.replaceWith(...disclosure.childNodes);}
+ button.onclick=()=>showSettingsTab(id);
+ button.onkeydown=event=>{const tabs=[...settingsNav.querySelectorAll('[role=tab]')],index=tabs.indexOf(button);let next;if(event.key==='ArrowRight')next=(index+1)%tabs.length;if(event.key==='ArrowLeft')next=(index+tabs.length-1)%tabs.length;if(event.key==='Home')next=0;if(event.key==='End')next=tabs.length-1;if(next!==undefined){event.preventDefault();showSettingsTab(tabs[next].dataset.settingsJump,true);}};
+}
+showSettingsTab(localStorage.getItem('settingsTab')||'settings-shopping');

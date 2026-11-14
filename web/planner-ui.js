@@ -86,7 +86,7 @@
   }
   $('plan-list').onclick=()=>{if(sending)return;try{
     if(!selectedAccount)throw Error('Choose the destination household account first.');
-    nameInput.value='';draft={target:selectedAccount,store:state.preferredStore,text:$('grocery-text').value,rows:ListPlanner.resolve(ListPlanner.parse($('grocery-text').value,(state.listDefaults||[]).filter(item=>(item.store||'Walmart')===state.preferredStore),state.listRules),{catalog:storeProducts(),purchases:state.purchases||[],variants:state.householdVariants||[],groups:state.householdItems||[],defaults:(state.listDefaults||[]).filter(item=>(item.store||'Walmart')===state.preferredStore),client:selectedAccount,store:state.preferredStore})};review();
+    nameInput.value='';draft={target:selectedAccount,store:state.preferredStore,text:$('grocery-text').value,rows:ListPlanner.resolve(ListPlanner.parse($('grocery-text').value,(state.listDefaults||[]).filter(item=>(item.store||'Walmart')===state.preferredStore),state.listRules),{catalog:storeProducts(),purchases:state.purchases||[],variants:state.householdVariants||[],groups:state.householdItems||[],reviews:state.matchReviews||[],defaults:(state.listDefaults||[]).filter(item=>(item.store||'Walmart')===state.preferredStore),client:selectedAccount,store:state.preferredStore})};review();
     const name=state.clients.find(client=>client.id===draft.target)?.name;
     message('Review for '+name+'. Choose exact products, quantities and any extras. Nothing has been sent.');
   }catch(error){message(error.message);}};

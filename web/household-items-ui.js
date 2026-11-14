@@ -48,6 +48,7 @@
   }
   function reset(){kind.value='equivalent';note.value='';editing=null;selected=new Map();manualItems=new Map();$('household-item-name').value='';$('household-item-search').value='';options();}
   window.renderHouseholdItems=()=>{
+    window.renderMatchReviews?.();
     if(matchBusy)return;
     if(client!==selectedAccount){client=selectedAccount;signature='';reset();}
     const allGroups=(state.householdItems||[]).filter(item=>item.client===selectedAccount),query=savedSearch.value.toLowerCase();const groups=allGroups.filter(g=>[g.name,g.note,...(state.householdVariants||[]).filter(v=>v.groupId===g.id).map(v=>v.name)].join(' ').toLowerCase().includes(query));const next=JSON.stringify({groups,store:state.preferredStore,links:state.householdVariants,catalog:catalog(),query,source:sourceStore.value,sourceQuery:sourceSearch.value});if(next===signature)return;signature=next;
