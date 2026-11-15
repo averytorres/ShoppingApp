@@ -4,7 +4,7 @@ var Household = (() => {
   let currentJob;
   let socket, socketBase, heartbeat, reconnectTimer;
   let pendingWake=false;
-  let nextCartRead=0;
+  let nextCartRead=0,lastCartWake=null;
   let waitingForWindow=false;
   function liveConnection(base){
     if(socketBase===base&&socket&&[WebSocket.OPEN,WebSocket.CONNECTING].includes(socket.readyState))return;
@@ -49,7 +49,7 @@ var Household = (() => {
       await chrome.storage.local.set({householdStatus:'Connected · synced '+new Date().toLocaleTimeString()});
       if(!execute)return;
       const {run}=await chrome.storage.local.get('run');if(run?.running)return;
-      const {job}=await request(base,'/api/bridge/claim',{clientId:householdClientId});if(!job){if(Date.now()<nextCartRead)return;nextCartRead=Date.now()+8000;const result=await execute({action:'snapshot',items:[]});waitingForWindow=!!result.error?.startsWith('Chrome is closed.');if(result.error)nextCartRead=Date.now()+60000;await request(base,'/api/bridge/cart',{clientId:householdClientId,cart:result.cart,error:result.error});return;}
+      const {job,activity}=await request(base,'/api/bridge/claim',{clientId:householdClientId});if(!job){if(!activity?.active)return;if(activity.wakeId!==lastCartWake){lastCartWake=activity.wakeId;nextCartRead=0;}if(Date.now()<nextCartRead)return;nextCartRead=Date.now()+8000;const result=await execute({action:'snapshot',items:[]});waitingForWindow=!!result.error?.startsWith('Chrome is closed.');if(result.error)nextCartRead=Date.now()+60000;await request(base,'/api/bridge/cart',{clientId:householdClientId,cart:result.cart,error:result.error});return;}
       syncingJob=true;currentJob={id:job.id,clientId:householdClientId,base};
       await chrome.storage.local.set({syncProgress:{store:'Walmart',running:true,at:Date.now(),processed:0,total:job.items?.length||0}});
       let result;

@@ -193,6 +193,14 @@ last-paid prices and shows recorded offer conditions and expiry where available.
 An empty watch does not mean every store price has been checked. Product matches
 and package-size ratios can be reviewed and edited in Settings.
 
+## When cart checks pause
+
+After 10 minutes without anyone using Home Grocery, automatic cart checks sleep. Opening the website, returning to its tab, or interacting with it wakes the checks for the household, including when you use a phone. Leaving a page open without using it does not keep the checks awake.
+
+Walmart resumes its cart checks while you use the website. H-E-B checks once when the household wakes, then continues to use store events and requested changes rather than periodic cart reloads. Changes made directly at a store while Home Grocery sleeps may appear only after you return.
+
+Queued cart changes, explicit sync requests, and the Monday 2 a.m. Eastern history sync still run while idle. The helper keeps a lightweight connection to your local server so it can receive that work. Your hosting PC must be awake, and the helper must be available and signed into the stores.
+
 ## Update, back up, or uninstall
 
 Run a newer installer to update. It preserves household data and verifies a

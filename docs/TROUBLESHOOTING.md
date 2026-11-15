@@ -26,7 +26,7 @@ downloading the source-code ZIP is not the same as downloading the installer.
 ## “Cannot reach the household server” or “Failed to fetch”
 
 1. On the hosting PC, use **Start → Home Grocery → Open Home Grocery**. For an
-   existing source/scheduled-task installation, check its configured server task instead.
+   existing source/scheduled-task installation, check its configured server task instead. The source launcher can run invisibly through `start-groceries-hidden.vbs`; the configured task on the hosting PC retries failures and checks every minute for a stopped launcher. No visible console needs to stay open.
 2. Check http://127.0.0.1:4317 on that PC. Keep it awake and signed into Windows.
 3. If localhost works but your phone does not, put both devices on the same
    private home network. A guest Wi-Fi network may isolate devices.
